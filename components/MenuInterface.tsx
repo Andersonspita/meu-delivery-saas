@@ -31,11 +31,9 @@ export default function MenuInterface({ pizzaria, categories, products, delivery
     setIsModalOpen(false)
   }
 
-  // --- FUNÇÃO NOVA: REMOVER ITEM DO CARRINHO ---
   const handleRemoveFromCart = (indexToRemove: number) => {
     setCart((prevCart) => prevCart.filter((_, index) => index !== indexToRemove))
   }
-  // ---------------------------------------------
 
   const cartTotal = cart.reduce((acc, item) => acc + Number(item.price), 0)
 
@@ -127,26 +125,22 @@ export default function MenuInterface({ pizzaria, categories, products, delivery
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
       
-      <div className="flex-1 flex flex-col w-full pb-28 md:pb-32">
+      {/* CORREÇÃO 1: Removi o 'pb-28 md:pb-32' daqui. 
+          Agora o fundo branco acaba exatamente onde o rodapé preto começa.
+      */}
+      <div className="flex-1 flex flex-col w-full">
         
         {/* WRAPPER FIXO (CABEÇALHO + ABAS) */}
         <div className="sticky top-0 z-30 shadow-md bg-white">
-            
-            {/* CABEÇALHO */}
             <div className="bg-red-600 p-4 text-white flex flex-col items-center transition-all">
                 {pizzaria.logo_url ? (
                 <div className="bg-white p-1 rounded-full shadow-lg mb-2">
-                    <img 
-                    src={pizzaria.logo_url} 
-                    alt={pizzaria.name} 
-                    className="w-20 h-20 rounded-full object-cover"
-                    />
+                    <img src={pizzaria.logo_url} alt={pizzaria.name} className="w-20 h-20 rounded-full object-cover" />
                 </div>
                 ) : null}
                 <h1 className="text-xl font-bold text-center">{pizzaria.name}</h1>
             </div>
 
-            {/* ABAS */}
             <div className="bg-white px-4 py-3 overflow-x-auto flex gap-2 no-scrollbar border-b">
                 {categories.map((cat) => (
                 <button
@@ -162,11 +156,10 @@ export default function MenuInterface({ pizzaria, categories, products, delivery
                 </button>
                 ))}
             </div>
-
         </div>
 
         {/* LISTA DE PRODUTOS */}
-        <div className="max-w-md mx-auto p-4 space-y-4 w-full">
+        <div className="max-w-md mx-auto p-4 space-y-4 w-full mb-8">
             <h2 className="text-lg font-bold text-gray-700 pl-1 border-l-4 border-red-500 ml-1 mt-4">
             {activeCategory?.name}
             </h2>
@@ -204,16 +197,28 @@ export default function MenuInterface({ pizzaria, categories, products, delivery
             ))}
         </div>
 
-        {/* RODAPÉ DO ENDEREÇO */}
-        <div className="mt-auto pt-12 pb-8 px-8 bg-gray-800 text-gray-400 text-center text-sm w-full">
+        {/* RODAPÉ PRETO 
+            CORREÇÃO 2: Adicionei 'pb-32' aqui. 
+            O fundo preto agora vai se estender para baixo, cobrindo a área atrás do botão do carrinho.
+        */}
+        <div className="mt-auto pt-12 pb-32 px-8 bg-gray-800 text-gray-400 text-center text-sm w-full">
             <h3 className="font-bold text-white mb-2 text-lg">{pizzaria.name}</h3>
             {pizzaria.address ? (
             <p className="whitespace-pre-line leading-relaxed max-w-md mx-auto">{pizzaria.address}</p>
             ) : (
             <p>Endereço não cadastrado.</p>
             )}
+            
             <div className="mt-6 pt-6 border-t border-gray-700">
-            <p className="text-xs opacity-50">Desenvolvido com Delivery SaaS</p>
+              <p className="text-xs opacity-50 mb-1">Desenvolvido por</p>
+              <a 
+                href="https://wa.me/5571993570954" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="font-bold text-gray-300 text-xs uppercase tracking-wider hover:text-white hover:underline transition"
+              >
+                Horizon AJ Desenvolvimento
+              </a>
             </div>
         </div>
 
@@ -248,14 +253,13 @@ export default function MenuInterface({ pizzaria, categories, products, delivery
         onAddToCart={handleAddToCart}
       />
       
-      {/* ATUALIZAÇÃO AQUI: PASSANDO ITENS E FUNÇÃO REMOVER */}
       <CheckoutModal 
         isOpen={isCheckoutOpen}
         onClose={() => setIsCheckoutOpen(false)}
         deliveryZones={deliveryZones}
         cartTotal={cartTotal}
-        cartItems={cart} 
-        onRemoveItem={handleRemoveFromCart} 
+        cartItems={cart}
+        onRemoveItem={handleRemoveFromCart}
         onConfirm={handleSendOrder}
       />
     </div>
