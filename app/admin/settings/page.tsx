@@ -31,7 +31,7 @@ export default function SettingsPage() {
         alert(`O arquivo é muito grande! O máximo permitido é ${MAX_SIZE_MB}MB.`)
         return
       }
-      // ----------------------------
+      
 
       setUploading(true)
 

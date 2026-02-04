@@ -17,9 +17,9 @@ interface CheckoutModalProps {
   onClose: () => void
   deliveryZones: DeliveryZone[]
   cartTotal: number
-  cartItems: any[] // <--- NOVO: Recebe a lista de itens
+  cartItems: any[] 
   onConfirm: (data: CheckoutData) => void
-  onRemoveItem: (index: number) => void // <--- NOVO: Função para deletar item
+  onRemoveItem: (index: number) => void 
 }
 
 export default function CheckoutModal({ 
@@ -31,7 +31,7 @@ export default function CheckoutModal({
   onConfirm,
   onRemoveItem
 }: CheckoutModalProps) {
-  const [step, setStep] = useState<'cart' | 'form'>('cart') // Controle de passos
+  const [step, setStep] = useState<'cart' | 'form'>('cart') 
   
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')

@@ -254,8 +254,8 @@ export default function MenuInterface({ pizzaria, categories, products, delivery
         onClose={() => setIsCheckoutOpen(false)}
         deliveryZones={deliveryZones}
         cartTotal={cartTotal}
-        cartItems={cart} // <--- Passando itens
-        onRemoveItem={handleRemoveFromCart} // <--- Passando função
+        cartItems={cart} 
+        onRemoveItem={handleRemoveFromCart} 
         onConfirm={handleSendOrder}
       />
     </div>
