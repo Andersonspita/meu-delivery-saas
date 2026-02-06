@@ -107,9 +107,12 @@ export const printOrder = async (characteristic: any, order: any) => {
   const data = receipt;
   const CHUNK_SIZE = 100;
   
-  for (let i = 0; i < data.length; i += CHUNK_SIZE) {
-    const chunk = data.slice(i, i + CHUNK_SIZE);
-    await characteristic.writeValue(chunk);
-    await new Promise(resolve => setTimeout(resolve, 50)); 
-  }
+  const byteBuffer = data.encode(); 
+
+// 2. Agora faça o loop no byteBuffer (que é um array e tem .length)
+for (let i = 0; i < byteBuffer.length; i += CHUNK_SIZE) {
+  const chunk = byteBuffer.slice(i, i + CHUNK_SIZE);
+  await characteristic.writeValue(chunk);
+  await new Promise(resolve => setTimeout(resolve, 50)); 
+}
 };
