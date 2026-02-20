@@ -22,6 +22,12 @@ interface CheckoutData {
   deliveryPrice: number
 }
 
+// Função auxiliar para gerar um código curto (Ex: 4X9F2A)
+function generateTrackingCode(): string {
+  // Gera uma string alfanumérica aleatória de 6 caracteres em maiúsculas
+  return Math.random().toString(36).substring(2, 8).toUpperCase()
+}
+
 export async function createValidatedOrder(
   pizzariaId: string,
   checkoutData: CheckoutData,
@@ -33,12 +39,11 @@ export async function createValidatedOrder(
       return { success: false, error: 'O carrinho está vazio.' }
     }
 
-    // 2. Gerar número do pedido (Simples: timestamp + rand)
-    // Em um sistema real, você poderia usar uma sequence do banco
+    // 2. Gerar número do pedido e o novo código de rastreio curto
     const orderNumber = Math.floor(1000 + Math.random() * 9000)
+    const shortCode = generateTrackingCode()
 
     // 3. Preparar o objeto para o Supabase
-    // Note que usamos os nomes de colunas que estão no seu banco
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
@@ -49,8 +54,9 @@ export async function createValidatedOrder(
         delivery_address: checkoutData.deliveryAddress,
         payment_method: checkoutData.paymentMethod,
         total_amount: checkoutData.totalAmount,
-        status: 'pending', // Todo pedido nasce como pendente
+        status: 'pending', // Todo o pedido nasce como pendente
         order_items_json: cartItems, // Gravamos o JSON completo do carrinho
+        tracking_code: shortCode, // <--- SALVANDO O CÓDIGO CURTO AQUI
         cancellation_reason: null
       })
       .select()
@@ -70,7 +76,7 @@ export async function createValidatedOrder(
     console.error('Erro na Action:', error.message)
     return { 
       success: false, 
-      error: error.message || 'Erro ao processar seu pedido.' 
+      error: error.message || 'Erro ao processar o seu pedido.' 
     }
   }
 }
