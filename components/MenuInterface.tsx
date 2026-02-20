@@ -63,11 +63,6 @@ export default function MenuInterface({ pizzaria, categories, products, delivery
     setIsOpen(checkStatus())
   }, [operatingHours])
 
-  /**
-   * FUNÇÃO DE CLIQUE CORRIGIDA
-   * TypeScript aceita isso porque os comandos estão em bloco {}, 
-   * sem tentar validar o retorno (void) das funções.
-   */
   const handleProductClick = (product: Product) => {
     if (!isOpen) return
     setSelectedProduct(product)
@@ -86,9 +81,11 @@ export default function MenuInterface({ pizzaria, categories, products, delivery
     try {
       const result = await createValidatedOrder(pizzaria.id, data, cart)
       if (result.success) {
-        alert(`🚀 Pedido #${result.order.order_number} enviado!`)
+        alert(`🚀 Pedido enviado com sucesso!`)
         clearCart()
         setIsCheckoutOpen(false)
+      } else {
+        alert(`Erro: ${result.error}`)
       }
     } catch (err) { 
         console.error(err)
@@ -144,7 +141,7 @@ export default function MenuInterface({ pizzaria, categories, products, delivery
         {displayedProducts.map((product) => (
           <div 
             key={product.id} 
-            onClick={() => handleProductClick(product)} // Chamada limpa e segura
+            onClick={() => handleProductClick(product)}
             className={`bg-white p-4 rounded-3xl border flex items-center transition ${
               !isOpen ? 'opacity-50 grayscale cursor-not-allowed' : 'active:scale-95 shadow-sm hover:shadow-md'
             }`}
@@ -185,7 +182,6 @@ export default function MenuInterface({ pizzaria, categories, products, delivery
         </div>
       )}
 
-      {/* MODAIS */}
       <ProductModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
