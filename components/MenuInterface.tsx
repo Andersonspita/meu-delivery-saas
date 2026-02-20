@@ -158,7 +158,9 @@ export default function MenuInterface({ pizzaria, categories, products, delivery
               <h3 className="font-black text-gray-800 leading-tight uppercase text-sm">{product.name}</h3>
               <p className="text-[10px] text-gray-400 line-clamp-2 mt-1">{product.description}</p>
               <div className="mt-2 text-green-600 font-black text-sm">
-                A partir de R$ {Math.min(...product.product_prices.map(p => p.price)).toFixed(2)}
+                A partir de R$ {(product.product_prices && product.product_prices.length > 0) 
+                  ? Math.min(...product.product_prices.map(p => p.price)).toFixed(2) 
+                  : '0.00'}
               </div>
             </div>
           </div>
