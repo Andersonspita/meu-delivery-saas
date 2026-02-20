@@ -61,8 +61,9 @@ export default function ProductModal({ isOpen, onClose, product, allProducts, on
       if (p2) extraNames.push(p2.name)
     }
 
+    // AJUSTE SÊNIOR: Alterado de product_id para productId para bater com a Server Action
     onAddToCart({
-      product_id: product.id,
+      productId: product.id, 
       name: product.name,
       size: selectedSizeName,
       price: finalPrice,
@@ -79,7 +80,6 @@ export default function ProductModal({ isOpen, onClose, product, allProducts, on
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto flex flex-col relative overflow-hidden">
         
-        {/* BOTÃO FECHAR FLUTUANTE */}
         <button 
             onClick={onClose} 
             className="absolute top-3 right-3 bg-black/30 text-white rounded-full p-2 hover:bg-black/50 z-20 backdrop-blur-md transition"
@@ -87,7 +87,6 @@ export default function ProductModal({ isOpen, onClose, product, allProducts, on
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
 
-        {/* FOTO GRANDE (HERO) */}
         <div className="h-56 bg-gray-100 flex items-center justify-center relative shrink-0">
              {product.image_url ? (
                 <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
@@ -104,7 +103,6 @@ export default function ProductModal({ isOpen, onClose, product, allProducts, on
         <div className="p-6 space-y-8">
           <p className="text-gray-600 text-sm leading-relaxed">{product.description}</p>
 
-          {/* 1. SELEÇÃO DE TAMANHO */}
           <div>
             <label className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 block">1. Escolha o Tamanho</label>
             <div className="grid grid-cols-1 gap-3">
@@ -125,7 +123,6 @@ export default function ProductModal({ isOpen, onClose, product, allProducts, on
             </div>
           </div>
 
-          {/* 2. ADICIONAR SABORES */}
           {canSplit && selectedSizeName && (
             <div className="bg-gray-50 p-5 rounded-xl border border-dashed border-gray-300">
               <label className="text-sm font-bold text-gray-800 flex items-center gap-2 mb-4">
@@ -169,7 +166,6 @@ export default function ProductModal({ isOpen, onClose, product, allProducts, on
             </div>
           )}
 
-          {/* 3. OBSERVAÇÃO */}
           <div>
             <label className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 block">Observações</label>
             <textarea
@@ -182,7 +178,6 @@ export default function ProductModal({ isOpen, onClose, product, allProducts, on
           </div>
         </div>
 
-        {/* FOOTER */}
         <div className="p-4 border-t bg-white mt-auto sticky bottom-0 z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
           <div className="flex justify-between items-center mb-4 px-2">
              <span className="text-gray-500 text-sm font-medium">Total do Item</span>

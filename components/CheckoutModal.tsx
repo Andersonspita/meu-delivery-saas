@@ -1,302 +1,257 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { CartItem } from '@/hooks/useCart'
 import { DeliveryZone } from '@/types/database'
 
 export interface CheckoutData {
   customerName: string
   customerPhone: string
-  deliveryZone: DeliveryZone | null
-  address: string
-  paymentMethod: string
-  changeFor?: string
+  deliveryAddress: string
+  paymentMethod: 'dinheiro' | 'cartao' | 'pix'
+  changeFor?: string | null
+  totalAmount: number
+  deliveryPrice: number
 }
 
 interface CheckoutModalProps {
   isOpen: boolean
   onClose: () => void
+  cartItems: CartItem[]
   deliveryZones: DeliveryZone[]
-  cartTotal: number
-  cartItems: any[]
+  onRemoveItem: (id: string) => void
+  onUpdateQuantity: (id: string, delta: number) => void
   onConfirm: (data: CheckoutData) => void
-  onRemoveItem: (index: number) => void
+  isSubmitting: boolean
 }
 
 export default function CheckoutModal({ 
   isOpen, 
   onClose, 
-  deliveryZones, 
-  cartTotal, 
   cartItems, 
-  onConfirm,
-  onRemoveItem
+  deliveryZones, 
+  onRemoveItem, 
+  onUpdateQuantity, 
+  onConfirm, 
+  isSubmitting 
 }: CheckoutModalProps) {
-  const [step, setStep] = useState<'cart' | 'form'>('cart')
   
+  // Controle de Navegação: 'cart' (Sacola) -> 'delivery' (Dados)
+  const [step, setStep] = useState<'cart' | 'delivery'>('cart')
+  
+  // Estados do Formulário (Sempre strings vazias, nunca undefined)
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
   const [selectedZoneId, setSelectedZoneId] = useState('')
   const [address, setAddress] = useState('')
-  const [paymentMethod, setPaymentMethod] = useState('pix')
+  const [paymentMethod, setPaymentMethod] = useState<'dinheiro' | 'cartao' | 'pix'>('pix')
   const [changeFor, setChangeFor] = useState('')
 
+  // Resetar o modal ao abrir
   useEffect(() => {
-    if (isOpen) setStep('cart')
+    if (isOpen) {
+        setStep('cart')
+    }
   }, [isOpen])
-
-  // --- MÁSCARA DE TELEFONE (NOVA) ---
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value.replace(/\D/g, '') // Remove tudo que não é número
-    
-    // Limita a 11 dígitos (DDD + 9 dígitos)
-    if (value.length > 11) value = value.slice(0, 11)
-
-    // Aplica a máscara (XX) XXXXX-XXXX
-    if (value.length > 2) {
-      value = value.replace(/^(\d{2})(\d)/g, '($1) $2')
-    }
-    if (value.length > 7) {
-      value = value.replace(/(\d)(\d{4})$/, '$1-$2')
-    }
-
-    setCustomerPhone(value)
-  }
-  // ----------------------------------
 
   if (!isOpen) return null
 
-  const selectedZone = deliveryZones.find(z => z.id === selectedZoneId) || null
+  // Lógica de Preços
+  const selectedZone = deliveryZones?.find(z => z.id === selectedZoneId)
   const deliveryPrice = selectedZone ? Number(selectedZone.price) : 0
-  const finalTotal = cartTotal + deliveryPrice
+  const subtotal = cartItems.reduce((acc, item) => acc + (item.price * item.quantity), 0)
+  const totalAmount = subtotal + deliveryPrice
 
-  const handleConfirm = () => {
+  const handleProcessOrder = () => {
     if (!customerName || !customerPhone || !selectedZoneId || !address) {
-      alert('Por favor, preencha todos os campos obrigatórios.')
-      return
+      return alert('⚠️ Preencha todos os campos para a entrega!')
     }
-
-    // Validação simples de tamanho do telefone
-    const cleanPhone = customerPhone.replace(/\D/g, '')
-    if (cleanPhone.length < 10) {
-      alert('Por favor, digite um telefone válido com DDD.')
-      return
-    }
-
+    
     onConfirm({
       customerName,
       customerPhone,
-      deliveryZone: selectedZone,
-      address,
+      deliveryAddress: `${address} - Bairro: ${selectedZone?.neighborhood_name}`,
       paymentMethod,
-      changeFor
+      changeFor: paymentMethod === 'dinheiro' ? (changeFor || 'Não solicitado') : null,
+      totalAmount: totalAmount,
+      deliveryPrice: deliveryPrice
     })
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white w-full sm:max-w-md h-[90vh] sm:h-auto sm:max-h-[90vh] rounded-t-2xl sm:rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-10 sm:zoom-in-95 duration-300">
+    <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-md p-0 sm:p-4 font-sans">
+      <div className="bg-white w-full max-w-lg h-[92vh] sm:h-auto sm:max-h-[90vh] rounded-t-[2.5rem] sm:rounded-3xl flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-300 shadow-2xl border-t border-gray-100">
         
-        <div className="bg-gray-50 px-6 py-4 border-b flex justify-between items-center sticky top-0 z-10">
-          <h2 className="font-bold text-lg text-gray-800">
-            {step === 'cart' ? '🛒 Sua Sacola' : '📝 Finalizar Pedido'}
+        {/* HEADER FIXO */}
+        <div className="p-6 border-b flex justify-between items-center bg-white">
+          <h2 className="text-xl font-black text-gray-800 uppercase tracking-tight italic">
+            {step === 'cart' ? '🛒 Minha Sacola' : '📍 Checkout Final'}
           </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          <button onClick={onClose} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition text-gray-400">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 bg-white">
-          
-          {step === 'cart' && (
+        {/* CONTEÚDO DINÂMICO */}
+        <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
+          {step === 'cart' ? (
+            /* PASSO 1: REVISÃO DA SACOLA */
             <div className="space-y-4">
               {cartItems.length === 0 ? (
-                <div className="text-center py-10">
-                    <span className="text-4xl block mb-2">🛍️</span>
-                    <p className="text-gray-500">Sua sacola está vazia.</p>
-                </div>
+                <div className="text-center py-12 opacity-40 font-black uppercase text-xs">Sua sacola está vazia</div>
               ) : (
-                <ul className="divide-y divide-gray-100">
-                  {cartItems.map((item, index) => (
-                    <li key={index} className="py-4 flex gap-4">
-                      <div className="w-16 h-16 bg-gray-100 rounded-lg shrink-0 flex items-center justify-center overflow-hidden border">
-                         {item.image_url ? (
-                            <img src={item.image_url} className="w-full h-full object-cover" />
-                         ) : (
-                            <span className="text-xl">🍕</span>
-                         )}
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        <div className="flex justify-between items-start">
-                          <h4 className="font-bold text-gray-800 text-sm truncate pr-2">{item.name}</h4>
-                          <span className="font-bold text-gray-900 text-sm whitespace-nowrap">R$ {item.price.toFixed(2)}</span>
+                cartItems.map((item) => (
+                  <div key={item.id} className="flex justify-between items-center bg-gray-50 p-4 rounded-3xl border border-gray-100 animate-in fade-in zoom-in-95">
+                    <div className="flex-1">
+                      <p className="font-black text-gray-800 text-sm leading-none uppercase">{item.name}</p>
+                      <p className="text-[10px] text-gray-400 font-bold mt-1 uppercase">{item.size}</p>
+                      
+                      <div className="flex items-center gap-4 mt-3">
+                        <div className="flex items-center bg-white border-2 border-gray-100 rounded-2xl overflow-hidden shadow-sm">
+                          <button onClick={() => onUpdateQuantity(item.id, -1)} className="px-3 py-1 text-red-600 font-black hover:bg-red-50">-</button>
+                          <span className="px-2 text-xs font-black text-gray-700 min-w-[20px] text-center">{item.quantity}</span>
+                          <button onClick={() => onUpdateQuantity(item.id, 1)} className="px-3 py-1 text-green-600 font-black hover:bg-green-50">+</button>
                         </div>
-                        <p className="text-xs text-gray-500">{item.size}</p>
-                        
-                        {item.flavors && item.flavors.length > 0 && (
-                          <p className="text-xs text-gray-600 mt-1 bg-gray-50 p-1 rounded inline-block">
-                            + {item.flavors.join(' e ')}
-                          </p>
-                        )}
-                        {item.observation && (
-                          <p className="text-xs text-red-500 italic mt-1 line-clamp-1">
-                            Obs: {item.observation}
-                          </p>
-                        )}
+                        <button onClick={() => onRemoveItem(item.id)} className="text-[9px] text-gray-300 font-black uppercase hover:text-red-500 transition">Excluir</button>
                       </div>
-
-                      <button 
-                        onClick={() => onRemoveItem(index)}
-                        className="text-gray-400 hover:text-red-500 self-start p-1 transition-colors"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+                    </div>
+                    <p className="font-black text-gray-900">R$ {(item.price * item.quantity).toFixed(2)}</p>
+                  </div>
+                ))
               )}
             </div>
-          )}
+          ) : (
+            /* PASSO 2: DADOS DE ENTREGA */
+            <div className="space-y-5 animate-in fade-in slide-in-from-right-4">
+               <div className="space-y-1">
+                 <label className="text-[10px] font-black text-gray-400 uppercase ml-1 tracking-widest">Nome Completo</label>
+                 <input 
+                   type="text" 
+                   className="w-full p-4 border-2 border-gray-100 rounded-2xl bg-gray-50 outline-none focus:border-red-500 font-bold text-sm" 
+                   value={customerName} 
+                   onChange={e => setCustomerName(e.target.value)} 
+                   placeholder="Quem recebe o pedido?" 
+                 />
+               </div>
+               
+               <div className="space-y-1">
+                 <label className="text-[10px] font-black text-gray-400 uppercase ml-1 tracking-widest">WhatsApp</label>
+                 <input 
+                   type="tel" 
+                   className="w-full p-4 border-2 border-gray-100 rounded-2xl bg-gray-50 outline-none focus:border-red-500 font-bold text-sm" 
+                   value={customerPhone} 
+                   onChange={e => setCustomerPhone(e.target.value)} 
+                   placeholder="(00) 00000-0000" 
+                 />
+               </div>
 
-          {step === 'form' && (
-            <div className="space-y-4 animate-in slide-in-from-right-10 duration-300">
-              
-              <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
-                <h3 className="font-bold text-gray-700 text-sm mb-3 uppercase tracking-wide flex items-center gap-2">
-                    👤 Seus Dados
-                </h3>
-                <div className="space-y-3">
-                  <input
-                    type="text"
-                    placeholder="Seu Nome"
-                    className="w-full p-3 border rounded text-sm outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition"
-                    value={customerName}
-                    onChange={e => setCustomerName(e.target.value)}
-                  />
-                  
-                  {/* INPUT COM MÁSCARA */}
-                  <input
-                    type="tel"
-                    placeholder="(71) 99999-9999"
-                    className="w-full p-3 border rounded text-sm outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition"
-                    value={customerPhone}
-                    onChange={handlePhoneChange} // <--- Função da máscara
-                    maxLength={15}
-                  />
-                </div>
-              </div>
+               <div className="space-y-1">
+                 <label className="text-[10px] font-black text-gray-400 uppercase ml-1 tracking-widest">Selecione seu Bairro</label>
+                 <div className="relative">
+                    <select 
+                        required
+                        className="w-full p-4 border-2 border-gray-100 rounded-2xl bg-gray-50 outline-none focus:border-red-500 font-bold text-sm appearance-none" 
+                        value={selectedZoneId} 
+                        onChange={e => setSelectedZoneId(e.target.value)}
+                    >
+                        <option value="">Clique aqui para escolher seu bairro...</option>
+                        {deliveryZones?.length > 0 ? (
+                            deliveryZones.map(zone => (
+                                <option key={zone.id} value={zone.id}>
+                                    {zone.neighborhood_name} (+ R$ {Number(zone.price).toFixed(2)})
+                                </option>
+                            ))
+                        ) : (
+                            <option disabled>Bairros não carregados no sistema</option>
+                        )}
+                    </select>
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">▼</div>
+                 </div>
+                 {deliveryZones?.length === 0 && (
+                     <p className="text-[9px] text-red-500 font-bold italic uppercase mt-1 pl-1">⚠️ Erro: Nenhuma taxa de entrega cadastrada no banco.</p>
+                 )}
+               </div>
 
-              <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
-                <h3 className="font-bold text-gray-700 text-sm mb-3 uppercase tracking-wide flex items-center gap-2">
-                    📍 Entrega
-                </h3>
-                <div className="space-y-3">
-                  <select
-                    className="w-full p-3 border rounded text-sm bg-white outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition"
-                    value={selectedZoneId}
-                    onChange={e => setSelectedZoneId(e.target.value)}
-                  >
-                    <option value="">Selecione seu Bairro...</option>
-                    {deliveryZones.map(zone => (
-                      <option key={zone.id} value={zone.id}>
-                        {zone.neighborhood_name} (+ R$ {Number(zone.price).toFixed(2)})
-                      </option>
+               <div className="space-y-1">
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-1 tracking-widest">Endereço (Rua, Nº, Bloco)</label>
+                  <textarea 
+                      className="w-full p-4 border-2 border-gray-100 rounded-2xl bg-gray-50 outline-none focus:border-red-500 font-bold text-sm" 
+                      rows={2} 
+                      value={address} 
+                      onChange={e => setAddress(e.target.value)} 
+                      placeholder="Ex: Rua das Pizzas, 500 - Bloco A" 
+                  />
+               </div>
+
+               <div className="pt-2">
+                 <label className="text-[10px] font-black text-gray-400 uppercase block mb-3 text-center tracking-widest">Forma de Pagamento</label>
+                 <div className="grid grid-cols-3 gap-2">
+                    {['pix', 'cartao', 'dinheiro'].map(method => (
+                      <button 
+                        key={method} 
+                        type="button"
+                        onClick={() => setPaymentMethod(method as any)} 
+                        className={`py-3 rounded-2xl border-2 font-black uppercase text-[10px] transition-all ${
+                            paymentMethod === method ? 'bg-red-600 text-white border-red-600 shadow-lg scale-105' : 'bg-gray-50 text-gray-400 border-transparent hover:bg-gray-100'
+                        }`}
+                      >
+                        {method}
+                      </button>
                     ))}
-                  </select>
-                  
-                  {selectedZoneId && (
-                    <textarea
-                      placeholder="Nome da Rua, Número e Referência"
-                      className="w-full p-3 border rounded text-sm outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition"
-                      rows={2}
-                      value={address}
-                      onChange={e => setAddress(e.target.value)}
+                 </div>
+               </div>
+
+               {paymentMethod === 'dinheiro' && (
+                 <div className="animate-in slide-in-from-top-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase ml-1 tracking-widest">Troco para quanto?</label>
+                    <input 
+                        type="text" 
+                        className="w-full p-4 border-2 border-gray-100 rounded-2xl bg-gray-50 outline-none focus:border-red-500 font-bold text-sm" 
+                        value={changeFor} 
+                        onChange={e => setChangeFor(e.target.value)} 
+                        placeholder="Ex: 50,00 ou 100,00" 
                     />
-                  )}
-                </div>
-              </div>
-
-              <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
-                <h3 className="font-bold text-gray-700 text-sm mb-3 uppercase tracking-wide flex items-center gap-2">
-                    💰 Pagamento
-                </h3>
-                <div className="space-y-2">
-                  <label className="flex items-center gap-3 p-3 border rounded bg-white cursor-pointer hover:border-red-300 transition">
-                    <input type="radio" name="payment" value="pix" checked={paymentMethod === 'pix'} onChange={() => setPaymentMethod('pix')} className="text-red-600 focus:ring-red-500" />
-                    <span className="text-sm font-medium">PIX</span>
-                  </label>
-                  <label className="flex items-center gap-3 p-3 border rounded bg-white cursor-pointer hover:border-red-300 transition">
-                    <input type="radio" name="payment" value="cartao" checked={paymentMethod === 'cartao'} onChange={() => setPaymentMethod('cartao')} className="text-red-600 focus:ring-red-500" />
-                    <span className="text-sm font-medium">Cartão (Maquininha)</span>
-                  </label>
-                  <label className="flex items-center gap-3 p-3 border rounded bg-white cursor-pointer hover:border-red-300 transition">
-                    <input type="radio" name="payment" value="dinheiro" checked={paymentMethod === 'dinheiro'} onChange={() => setPaymentMethod('dinheiro')} className="text-red-600 focus:ring-red-500" />
-                    <span className="text-sm font-medium">Dinheiro</span>
-                  </label>
-
-                  {paymentMethod === 'dinheiro' && (
-                    <div className="ml-7 mt-2 animate-in fade-in">
-                        <label className="text-xs text-gray-500 block mb-1">Precisa de troco para quanto?</label>
-                        <input
-                            type="text"
-                            placeholder="Ex: 50,00"
-                            className="w-full p-2 border rounded text-sm"
-                            value={changeFor}
-                            onChange={e => setChangeFor(e.target.value)}
-                        />
-                    </div>
-                  )}
-                </div>
-              </div>
-
+                 </div>
+               )}
             </div>
           )}
         </div>
 
-        <div className="border-t p-4 bg-white sticky bottom-0 z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-            <div className="flex justify-between items-center mb-2 text-sm">
-                <span className="text-gray-500">Subtotal</span>
-                <span className="font-bold text-gray-800">R$ {cartTotal.toFixed(2)}</span>
-            </div>
-            {step === 'form' && selectedZone && (
-                <div className="flex justify-between items-center mb-2 text-sm animate-in fade-in">
-                    <span className="text-gray-500">Taxa de Entrega</span>
-                    <span className="font-bold text-red-600">+ R$ {deliveryPrice.toFixed(2)}</span>
-                </div>
-            )}
-            
-            <div className="flex justify-between items-center mb-6 text-xl font-bold border-t pt-3 border-dashed border-gray-200">
-                <span className="text-gray-900">Total</span>
-                <span className="text-green-600">R$ {finalTotal.toFixed(2)}</span>
-            </div>
+        {/* FOOTER FIXO */}
+        <div className="p-8 border-t bg-gray-50 space-y-4">
+          <div className="space-y-1">
+             <div className="flex justify-between text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">
+                <span>Subtotal</span>
+                <span>R$ {subtotal.toFixed(2)}</span>
+             </div>
+             <div className="flex justify-between text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">
+                <span>Taxa de Entrega</span>
+                <span className="text-green-600">{deliveryPrice > 0 ? `+ R$ ${deliveryPrice.toFixed(2)}` : 'Selecione o bairro'}</span>
+             </div>
+             <div className="flex justify-between items-center pt-2">
+                <span className="text-sm font-black text-gray-800 uppercase italic">Valor Total</span>
+                <span className="text-3xl font-black text-red-600 tracking-tighter">R$ {totalAmount.toFixed(2)}</span>
+             </div>
+          </div>
 
-            {step === 'cart' ? (
-                 <button 
-                 onClick={() => setStep('form')}
-                 disabled={cartItems.length === 0}
-                 className="w-full bg-red-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-red-200 flex justify-center items-center gap-2"
-               >
-                 Continuar para Entrega <span>→</span>
-               </button>
-            ) : (
-                <div className="flex gap-3">
-                    <button 
-                        onClick={() => setStep('cart')}
-                        className="px-5 py-4 border border-gray-300 rounded-xl font-bold text-gray-600 hover:bg-gray-50 transition"
-                    >
-                        ← Voltar
-                    </button>
-                    <button 
-                        onClick={handleConfirm}
-                        className="flex-1 bg-green-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-green-700 transition shadow-lg shadow-green-200 flex justify-center items-center gap-2"
-                    >
-                        <span>Enviar Pedido</span>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2L11 13"></path><path d="M22 2l-7 20-4-9-9-4 20-7z"></path></svg>
-                    </button>
-                </div>
+          <div className="flex gap-3 pt-2">
+            {step === 'delivery' && (
+                <button 
+                    onClick={() => setStep('cart')}
+                    className="px-6 py-4 border-2 border-gray-200 rounded-2xl font-black uppercase text-[10px] text-gray-400 hover:bg-white transition"
+                >
+                    Voltar
+                </button>
             )}
+            <button 
+                onClick={() => step === 'cart' ? setStep('delivery') : handleProcessOrder()}
+                disabled={isSubmitting || (step === 'cart' && cartItems.length === 0)}
+                className="flex-1 py-4 bg-red-600 text-white rounded-2xl font-black uppercase tracking-[0.2em] text-xs shadow-xl shadow-red-100 hover:bg-red-700 transition active:scale-95 disabled:opacity-50"
+            >
+                {step === 'cart' ? 'Dados de Entrega' : isSubmitting ? 'Enviando...' : 'Confirmar Pedido'}
+            </button>
+          </div>
         </div>
-
       </div>
     </div>
   )

@@ -1,61 +1,54 @@
-import { supabase } from '../../lib/supabase'
+import { supabase } from '@/lib/supabase'
+import MenuInterface from '@/components/MenuInterface'
 import { notFound } from 'next/navigation'
-import { Pizzaria, Category, Product } from '../../types/database'
-import MenuInterface from '../../components/MenuInterface' 
 
+export const revalidate = 0 // Força o Next.js a buscar dados novos sempre
 
-async function getData(slug: string) {
-  
+async function getPizzariaData(slug: string) {
   const { data: pizzaria } = await supabase
     .from('pizzarias')
     .select('*')
     .eq('slug', slug)
-    .maybeSingle()
+    .single()
 
   if (!pizzaria) return null
 
-  
-  const { data: categories } = await supabase
-    .from('categories')
-    .select('*')
-    .eq('pizzaria_id', pizzaria.id)
-    .order('sort_order', { ascending: true })
+  // Buscamos tudo. Note que aqui NÃO filtramos por active no banco, 
+  // deixamos para o componente decidir, assim evitamos erros de query.
+  const [categories, products, deliveryZones, operatingHours] = await Promise.all([
+    supabase.from('categories').select('*').eq('pizzaria_id', pizzaria.id).order('name'),
+    supabase.from('products').select('*, product_prices(*)').eq('pizzaria_id', pizzaria.id).order('name'),
+    supabase.from('delivery_zones').select('*').eq('pizzaria_id', pizzaria.id),
+    supabase.from('operating_hours').select('*').eq('pizzaria_id', pizzaria.id)
+  ])
 
-  
-  const { data: products } = await supabase
-    .from('products')
-    .select('*, product_prices(price, size_name)') 
-    .eq('pizzaria_id', pizzaria.id)
-    .eq('is_available', true)
+  // DEBUG NO TERMINAL: Olhe o terminal do seu VS Code ao carregar a página
+  console.log(`--- DEBUG: ${pizzaria.name} ---`)
+  console.log(`Bairros no Banco:`, deliveryZones.data?.length)
+  console.log(`Dados dos Bairros:`, deliveryZones.data)
 
-  
-  const { data: deliveryZones } = await supabase
-    .from('delivery_zones')
-    .select('*')
-    .eq('pizzaria_id', pizzaria.id)
-    .order('price', { ascending: true })
-
-  return { 
-    pizzaria, 
-    categories: categories || [], 
-    products: products || [],
-    deliveryZones: deliveryZones || [] 
+  return {
+    pizzaria,
+    categories: categories.data || [],
+    products: products.data || [],
+    deliveryZones: deliveryZones.data || [],
+    operatingHours: operatingHours.data || []
   }
 }
 
-export default async function CardapioPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function CardapioPage({ params }: { params: { slug: string } }) {
   const { slug } = await params
-  const data = await getData(slug)
+  const data = await getPizzariaData(slug)
 
   if (!data) return notFound()
 
-  
   return (
     <MenuInterface 
       pizzaria={data.pizzaria} 
       categories={data.categories} 
       products={data.products}
-      deliveryZones={data.deliveryZones} 
+      deliveryZones={data.deliveryZones}
+      operatingHours={data.operatingHours} 
     />
   )
 }

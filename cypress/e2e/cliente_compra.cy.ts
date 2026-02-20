@@ -1,67 +1,63 @@
-describe('Fluxo Completo: 2 Pizzas + Bebida', () => {
+describe('Fluxo Completo de Compra do Cliente (End-to-End)', () => {
+  const pizzariaSlug = 'pizzaria-sertao' // <-- Use um slug válido!
+
   beforeEach(() => {
-    // Aumente o timeout se seu computador for lento para carregar o site
-    cy.visit('http://localhost:3000/pizzaria-love', { timeout: 15000 }) 
+    cy.clearLocalStorage()
+    // Aumentamos o timeout de visita para evitar falhas em cold start do Next.js
+    cy.visit(`/${pizzariaSlug}`, { timeout: 30000 })
   })
 
-  it('Deve adicionar pizzas e bebida ao carrinho e finalizar', () => {
-    
-    // --- 1. ADICIONAR CALABRESA ---
-    // Espera carregar e clica no card da Calabresa
-    cy.contains('Calabresa', { timeout: 10000 }).should('be.visible').click()
-    cy.contains('Grande').click() // Escolhe tamanho
-    cy.get('button').contains('Adicionar à Sacola').click()
-    
-    // O modal fecha sozinho, seguimos.
-    
-    // --- 2. ADICIONAR MARGUERITA ---
-    // Garante que a Marguerita está visível e clica
-    cy.contains('Marguerita').should('be.visible').click()
-    cy.contains('Média').click() // Escolhe tamanho diferente
-    cy.get('button').contains('Adicionar à Sacola').click()
+  it('Deve realizar um pedido completo com sucesso e limpar a sacola', () => {
+    // ---------------------------------------------------
+    // PASSO 1: ESCOLHER O PRODUTO
+    // ---------------------------------------------------
+    cy.get('.bg-white.p-3.rounded-xl', { timeout: 10000 }).first().click()
+    cy.contains('button', 'Adicionar').click()
 
-    // --- 3. ADICIONAR COCA-COLA (CORRIGIDO) ---
-    
-    // CORREÇÃO: Clica primeiro na aba de categoria "Bebidas Geladas"
-    // Usamos .should('be.visible') para garantir que a barra de categorias carregou
-    cy.contains('Bebidas Geladas').should('be.visible').click()
-    
-    // Agora sim, a Coca-Cola deve aparecer na tela. Clicamos nela.
-    cy.contains('Coca-Cola', { timeout: 5000 }).should('be.visible').click()
-    
-    // Clica no botão de adicionar do modal da bebida
-    cy.get('button').contains('Adicionar à Sacola').click()
+    // ---------------------------------------------------
+    // PASSO 2: REVISAR SACOLA
+    // ---------------------------------------------------
+    cy.get('.fixed.bottom-0').should('be.visible')
+    cy.contains('button', 'Ver Sacola').click()
+    cy.contains('button', 'Continuar para Entrega').click()
 
-    // --- 4. CONFERIR E FECHAR ---
-    // Clica no botão verde da sacola no rodapé
-    cy.contains('Ver Sacola').click()
-
-    // --- 5. CHECKOUT ---
-    cy.contains('Continuar para Entrega').click()
+    // ---------------------------------------------------
+    // PASSO 3: PREENCHER DADOS
+    // ---------------------------------------------------
+    cy.get('input[placeholder="Seu Nome"]').type('João Silva Teste')
+    cy.get('input[type="tel"]').type('71999998888') 
     
-    cy.get('input[placeholder*="Nome"]').type('Cliente Faminto')
-    // Usando um número de teste válido para APIs de WhatsApp
-    cy.get('input[placeholder*="99"]').type('5511999999999')
+    // Seleciona zona de entrega e preenche endereço
+    cy.get('select').select(1)
+    cy.get('textarea').type('Rua das Automações, Lote 42, Apto 101')
+
+    // Ativa campo de troco clicando no span
+    cy.contains('span', 'Dinheiro').click({ force: true })
+    cy.get('input[placeholder="Ex: 50,00"]').should('be.visible').type('100,00')
+
+    // ---------------------------------------------------
+    // PASSO 4: ENVIAR E AGUARDAR RESPOSTA (O segredo da estabilidade)
+    // ---------------------------------------------------
     
-    // Seleciona o Bairro "Centro" (ou o primeiro da lista)
-    cy.get('select').should('be.visible').select(1) 
+    // Interceptamos a Server Action do Next.js (POST para a própria página)
+    cy.intercept('POST', `/${pizzariaSlug}*`).as('serverAction')
 
-    // Digita endereço
-    cy.get('textarea, input[placeholder*="Rua"], input[placeholder*="Endereço"]')
-      .should('be.visible')
-      .type('Rua da Festa, 500, Apt 101')
-
-    // Seleciona Pix
-    cy.get('input[value="pix"]').check({ force: true })
-
-    // Monitora o window.open (para não abrir aba nova do WhatsApp)
-    cy.window().then((win) => {
-      cy.stub(win, 'open').as('windowOpen')
+    // Escutamos o alerta de sucesso
+    cy.on('window:alert', (texto) => {
+      expect(texto).to.include('sucesso')
     })
 
-    cy.contains('Enviar Pedido').click()
+    // Clica para enviar
+    cy.contains('button', 'Enviar Pedido').scrollIntoView().click()
 
-    // Verifica se a tentativa de abrir o WhatsApp ocorreu
-    cy.get('@windowOpen').should('be.called')
+    // 1. Primeiro esperamos a resposta do servidor (Server Action)
+    // Isso garante que o banco processou o pedido antes de checarmos a UI
+    cy.wait('@serverAction', { timeout: 15000 })
+
+    // 2. Agora sim, o carrinho DEVE ter sumido
+    // Usamos uma verificação robusta que aguarda o elemento sair da DOM
+    cy.get('.fixed.bottom-0', { timeout: 10000 }).should('not.exist')
+
+    cy.log('✅ Pedido finalizado e carrinho limpo com sucesso!')
   })
 })

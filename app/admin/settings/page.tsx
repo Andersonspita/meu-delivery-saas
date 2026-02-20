@@ -1,209 +1,218 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation' // Adicionado
 
-export default function SettingsPage() {
-  const router = useRouter() // Adicionado
+export default function AdminSettingsPage() {
+  const router = useRouter()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
   const [pizzaria, setPizzaria] = useState<any>(null)
-  
-  const [name, setName] = useState('')
-  const [address, setAddress] = useState('')
-  
-  const [uploading, setUploading] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [loading, setLoading] = useState(true) // Novo estado de loading
-  
+
+  const [formData, setFormData] = useState({
+    name: '',
+    whatsapp: '', // Alterado de phone para whatsapp
+    address: '',
+    logo_url: '',
+    slug: ''
+  })
+
   useEffect(() => {
-    const fetchData = async () => {
-      // 1. Verificar Login
+    const fetchSettings = async () => {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        router.push('/admin')
-        return
-      }
+      if (!session) return router.push('/admin')
 
       try {
-        // 2. Descobrir qual pizzaria este usuário administra
-        const { data: adminLink, error: linkError } = await supabase
+        const { data: adminLink } = await supabase
           .from('admin_users')
           .select('pizzaria_id')
           .eq('user_id', session.user.id)
           .single()
 
-        if (linkError || !adminLink) {
-          alert('Erro de permissão: Usuário não vinculado a nenhuma pizzaria.')
-          router.push('/admin/dashboard')
-          return
-        }
+        if (!adminLink) throw new Error('Vínculo não encontrado')
 
-        // 3. Buscar os dados DA PIZZARIA CERTA
-        const { data } = await supabase
-            .from('pizzarias')
-            .select('*')
-            .eq('id', adminLink.pizzaria_id) // <--- O FILTRO IMPORTANTE
-            .single()
-        
-        if (data) {
-            setPizzaria(data)
-            setName(data.name || '')
-            setAddress(data.address || '')
+        const { data: pizzariaData } = await supabase
+          .from('pizzarias')
+          .select('*')
+          .eq('id', adminLink.pizzaria_id)
+          .single()
+
+        if (pizzariaData) {
+          setPizzaria(pizzariaData)
+          setFormData({
+            name: pizzariaData.name || '',
+            whatsapp: pizzariaData.whatsapp || '', // Bate com o banco
+            address: pizzariaData.address || '',
+            logo_url: pizzariaData.logo_url || '',
+            slug: pizzariaData.slug || ''
+          })
         }
-      } catch (error) {
-        console.error(error)
+      } catch (err) {
+        console.error(err)
       } finally {
-        setLoading(false)
+        setIsLoading(false)
       }
     }
-    fetchData()
+    fetchSettings()
   }, [router])
 
-  const handleLogoUpload = async (event: any) => {
+  const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !pizzaria) return
+
+    setIsSaving(true)
     try {
-      const file = event.target.files[0]
-      if (!file) return
-
-      if (file.size > 2 * 1024 * 1024) {
-        alert('A imagem é muito grande! Use um arquivo menor que 2MB.')
-        return
-      }
-
-      setUploading(true)
       const fileExt = file.name.split('.').pop()
-      const fileName = `logo-${Date.now()}.${fileExt}`
-      const filePath = `logos/${fileName}`
+      const fileName = `${pizzaria.id}-${Date.now()}.${fileExt}`
+      const filePath = `${fileName}`
 
       const { error: uploadError } = await supabase.storage
-        .from('images')
+        .from('logos')
         .upload(filePath, file)
 
       if (uploadError) throw uploadError
 
-      const { data } = supabase.storage.from('images').getPublicUrl(filePath)
-      const publicUrl = data.publicUrl
+      const { data: { publicUrl } } = supabase.storage
+        .from('logos')
+        .getPublicUrl(filePath)
 
-      const { error: dbError } = await supabase
+      setFormData(prev => ({ ...prev, logo_url: publicUrl }))
+      alert('Imagem carregada! Não esqueça de Salvar as Alterações abaixo.')
+      
+    } catch (err: any) {
+      alert('Erro no upload: ' + err.message)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSaving(true)
+
+    try {
+      // Aqui usamos 'whatsapp' que é o nome da coluna no seu banco
+      const { error } = await supabase
         .from('pizzarias')
-        .update({ logo_url: publicUrl })
+        .update({
+          name: formData.name,
+          whatsapp: formData.whatsapp, // Ajustado para a coluna correta
+          address: formData.address,
+          logo_url: formData.logo_url,
+          slug: formData.slug.toLowerCase().replace(/\s+/g, '-')
+        })
         .eq('id', pizzaria.id)
 
-      if (dbError) throw dbError
+      if (error) throw error
 
-      setPizzaria({ ...pizzaria, logo_url: publicUrl })
-      alert('Logo atualizada com sucesso!')
-    } catch (error) {
-      alert('Erro ao enviar imagem. Tente novamente.')
-      console.log(error)
+      alert('✅ Configurações salvas com sucesso!')
+      router.refresh() 
+    } catch (err: any) {
+      alert('Erro ao salvar: ' + err.message)
     } finally {
-      setUploading(false)
+      setIsSaving(false)
     }
   }
 
-  const handleSaveSettings = async () => {
-    if (!name.trim()) return alert('O nome da empresa não pode ficar vazio.')
-
-    setSaving(true)
-    const { error } = await supabase
-      .from('pizzarias')
-      .update({ 
-        name: name,
-        address: address 
-      })
-      .eq('id', pizzaria.id)
-    
-    if (!error) {
-      alert('Dados da empresa atualizados com sucesso!')
-      setPizzaria({ ...pizzaria, name, address })
-    } else {
-      alert('Erro ao salvar dados.')
-      console.error(error)
-    }
-    setSaving(false)
-  }
-
-  if (loading) return <div className="p-10 text-center animate-pulse">Carregando configurações...</div>
-  if (!pizzaria) return <div className="p-10 text-center text-red-500">Erro ao carregar pizzaria.</div>
+  if (isLoading) return <div className="p-10 text-center animate-pulse">Carregando...</div>
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-10">
-      <nav className="bg-white shadow px-6 py-4 flex gap-4 items-center mb-6">
-        <Link href="/admin/dashboard" className="text-gray-500 hover:text-red-600 font-medium">← Voltar ao Painel</Link>
-        <h1 className="text-xl font-bold text-gray-800">Configurações: {pizzaria.name}</h1>
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      <nav className="bg-white shadow-sm border-b px-6 py-4 sticky top-0 z-30">
+        <div className="max-w-4xl mx-auto flex justify-between items-center">
+          <Link href="/admin/dashboard" className="text-gray-500 font-bold flex items-center gap-2 hover:text-black transition">
+            ← Voltar ao Painel
+          </Link>
+          <button 
+            form="settings-form"
+            disabled={isSaving}
+            className={`px-6 py-2 rounded-lg font-bold text-sm ${
+              isSaving ? 'bg-gray-400' : 'bg-green-600 text-white hover:bg-green-700 shadow-md'
+            }`}
+          >
+            {isSaving ? 'Processando...' : 'Salvar Alterações'}
+          </button>
+        </div>
       </nav>
 
-      <div className="max-w-2xl mx-auto px-4 space-y-6">
-        
-        {/* CARD DA LOGO */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <h2 className="font-bold text-lg text-gray-800 mb-4 flex items-center gap-2">
-            📸 Logo da Empresa
-          </h2>
-          <div className="flex flex-col sm:flex-row items-center gap-6">
-            <div className="w-32 h-32 bg-gray-100 rounded-full overflow-hidden border-4 border-white shadow-md flex items-center justify-center relative shrink-0">
-              {pizzaria.logo_url ? (
-                <img src={pizzaria.logo_url} alt="Logo" className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-gray-400 text-2xl">🍕</span>
-              )}
+      <main className="flex-1 p-4 md:p-8 max-w-4xl mx-auto w-full">
+        <form id="settings-form" onSubmit={handleSave} className="space-y-6">
+          
+          <div className="bg-white rounded-2xl border p-6 flex flex-col items-center">
+            <h2 className="text-sm font-black text-gray-400 uppercase mb-6">Logo da Pizzaria</h2>
+            <div className="relative">
+              <div className="w-32 h-32 rounded-full border-4 border-gray-100 shadow-inner overflow-hidden bg-gray-50 flex items-center justify-center">
+                {formData.logo_url ? (
+                  <img src={formData.logo_url} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-4xl">🍕</span>
+                )}
+              </div>
+              <input type="file" ref={fileInputRef} onChange={handleUploadImage} accept="image/*" className="hidden" />
+              <button 
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute bottom-0 right-0 bg-red-600 text-white p-2 rounded-full shadow-lg hover:bg-red-700 transition"
+              >
+                📸
+              </button>
             </div>
-            <div className="flex-1 text-center sm:text-left">
-              <label className={`inline-block px-6 py-3 rounded-lg cursor-pointer transition font-bold text-sm shadow-sm ${uploading ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}>
-                {uploading ? 'Enviando foto...' : 'Alterar Logo'}
-                <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" disabled={uploading} />
-              </label>
-              
-              <div className="mt-3 text-xs text-gray-500 space-y-1">
-                <p>✅ Formato: <strong>JPG</strong> ou <strong>PNG</strong></p>
-                <p>✅ Tamanho ideal: <strong>Quadrado (500x500)</strong></p>
+          </div>
+
+          <div className="bg-white rounded-2xl border p-6 space-y-4">
+            <h2 className="text-sm font-black text-gray-400 uppercase mb-2">Informações Gerais</h2>
+            
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-1">NOME DA PIZZARIA</label>
+              <input 
+                type="text" 
+                required
+                className="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-red-500"
+                value={formData.name}
+                onChange={(e) => setFormData({...formData, name: e.target.value})}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">WHATSAPP (COM DDD)</label>
+                <input 
+                  type="text" 
+                  required
+                  placeholder="71999998888"
+                  className="w-full p-3 border rounded-xl outline-none"
+                  value={formData.whatsapp}
+                  onChange={(e) => setFormData({...formData, whatsapp: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">LINK DO CARDÁPIO (SLUG)</label>
+                <input 
+                  type="text" 
+                  required
+                  className="w-full p-3 border rounded-xl outline-none font-mono text-sm"
+                  value={formData.slug}
+                  onChange={(e) => setFormData({...formData, slug: e.target.value})}
+                />
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* CARD DOS DADOS */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <h2 className="font-bold text-lg text-gray-800 mb-4 flex items-center gap-2">
-            📝 Dados da Empresa
-          </h2>
-          
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1">Nome Fantasia</label>
-              <input 
-                type="text"
-                className="w-full p-3 border rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 outline-none transition"
-                placeholder="Ex: Pizzaria do Sertão"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1">Endereço Completo (Rodapé)</label>
+              <label className="block text-xs font-bold text-gray-700 mb-1">ENDEREÇO</label>
               <textarea 
-                className="w-full p-3 border rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 outline-none transition" 
                 rows={3}
-                placeholder="Ex: Rua das Flores, 123 - Centro, Salvador - BA"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
+                className="w-full p-3 border rounded-xl outline-none"
+                value={formData.address}
+                onChange={(e) => setFormData({...formData, address: e.target.value})}
               />
             </div>
-
-            <div className="pt-2">
-                <button 
-                    onClick={handleSaveSettings} 
-                    disabled={saving}
-                    className="w-full bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700 transition shadow-sm disabled:opacity-70 flex justify-center items-center gap-2"
-                >
-                    {saving ? 'Salvando...' : '💾 Salvar Alterações'}
-                </button>
-            </div>
           </div>
-        </div>
-
-      </div>
+        </form>
+      </main>
     </div>
   )
 }
