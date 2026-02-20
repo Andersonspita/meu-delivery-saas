@@ -63,7 +63,11 @@ export default function MenuInterface({ pizzaria, categories, products, delivery
     setIsOpen(checkStatus())
   }, [operatingHours])
 
-  // FUNÇÃO DE CLIQUE CORRIGIDA (TS SAFE)
+  /**
+   * FUNÇÃO DE CLIQUE CORRIGIDA
+   * TypeScript aceita isso porque os comandos estão em bloco {}, 
+   * sem tentar validar o retorno (void) das funções.
+   */
   const handleProductClick = (product: Product) => {
     if (!isOpen) return
     setSelectedProduct(product)
@@ -86,7 +90,12 @@ export default function MenuInterface({ pizzaria, categories, products, delivery
         clearCart()
         setIsCheckoutOpen(false)
       }
-    } catch (err) { alert('Erro ao enviar pedido.') } finally { setIsSubmitting(false) }
+    } catch (err) { 
+        console.error(err)
+        alert('Erro ao enviar pedido.') 
+    } finally { 
+        setIsSubmitting(false) 
+    }
   }
 
   const cartTotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0)
@@ -103,6 +112,7 @@ export default function MenuInterface({ pizzaria, categories, products, delivery
         </div>
       )}
 
+      {/* HEADER */}
       <div className="sticky top-0 z-30 shadow-md bg-white">
         <div className="bg-red-600 p-6 text-white flex flex-col items-center">
           {pizzaria.logo_url && (
@@ -113,6 +123,7 @@ export default function MenuInterface({ pizzaria, categories, products, delivery
           <h1 className="text-xl font-black uppercase tracking-tighter italic">{pizzaria.name}</h1>
         </div>
 
+        {/* CATEGORIAS */}
         <div className="bg-white px-4 py-4 overflow-x-auto flex gap-3 no-scrollbar border-b">
           {categories.map((cat) => (
             <button 
@@ -128,19 +139,20 @@ export default function MenuInterface({ pizzaria, categories, products, delivery
         </div>
       </div>
 
+      {/* PRODUTOS */}
       <main className="max-w-md mx-auto p-4 space-y-6 w-full mb-32">
         {displayedProducts.map((product) => (
           <div 
             key={product.id} 
-            onClick={() => handleProductClick(product)} // <--- CHAMADA LIMPA AQUI
+            onClick={() => handleProductClick(product)} // Chamada limpa e segura
             className={`bg-white p-4 rounded-3xl border flex items-center transition ${
-              !isOpen ? 'opacity-50 grayscale cursor-not-allowed' : 'active:scale-95 shadow-sm'
+              !isOpen ? 'opacity-50 grayscale cursor-not-allowed' : 'active:scale-95 shadow-sm hover:shadow-md'
             }`}
           >
             {product.image_url ? (
-                <img src={product.image_url} className="w-20 h-20 rounded-2xl object-cover mr-4" />
+                <img src={product.image_url} className="w-20 h-20 rounded-2xl object-cover mr-4 shadow-sm" />
             ) : (
-                <div className="w-20 h-20 rounded-2xl bg-gray-50 flex items-center justify-center mr-4 text-3xl">🍕</div>
+                <div className="w-20 h-20 rounded-2xl bg-gray-50 flex items-center justify-center mr-4 text-3xl shadow-inner">🍕</div>
             )}
             <div className="flex-1 min-w-0">
               <h3 className="font-black text-gray-800 leading-tight uppercase text-sm">{product.name}</h3>
@@ -153,6 +165,7 @@ export default function MenuInterface({ pizzaria, categories, products, delivery
         ))}
       </main>
 
+      {/* FOOTER CARRINHO */}
       {cartLoaded && cart.length > 0 && isOpen && (
         <div className="fixed bottom-0 left-0 w-full bg-white/95 backdrop-blur-md border-t p-5 shadow-2xl z-50 animate-in slide-in-from-bottom">
           <div className="max-w-md mx-auto flex justify-between items-center">
@@ -170,6 +183,7 @@ export default function MenuInterface({ pizzaria, categories, products, delivery
         </div>
       )}
 
+      {/* MODAIS */}
       <ProductModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
