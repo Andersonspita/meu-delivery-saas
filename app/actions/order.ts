@@ -1,116 +1,76 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
-import { CheckoutData } from '@/components/CheckoutModal'
+import { supabase } from '@/lib/supabase'
 
-// Interface que corresponde aos itens do carrinho vindos do frontend
-export interface CartItemPayload {
+interface OrderItem {
   id: string
-  productId: string // ID real do produto no Supabase (Necessário para a validação)
   name: string
+  price: number
+  quantity: number
   size: string
-  price: number // Preço enviado pelo front (Vamos IGNORAR por segurança)
   flavors?: string[]
   observation?: string
 }
 
-// Inicializa o Supabase Admin (Bypass RLS para inserções seguras feitas pelo servidor)
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-// A chave SERVICE_ROLE é secreta e nunca vai para o navegador
-const supabaseAdminKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-
-const supabase = createClient(supabaseUrl, supabaseAdminKey, {
-  auth: {
-    persistSession: false,
-    autoRefreshToken: false,
-  }
-})
+interface CheckoutData {
+  customerName: string
+  customerPhone: string
+  deliveryAddress: string
+  paymentMethod: 'dinheiro' | 'cartao' | 'pix'
+  changeFor?: string | null
+  totalAmount: number
+  deliveryPrice: number
+}
 
 export async function createValidatedOrder(
-  pizzariaId: string, 
-  checkoutData: CheckoutData, 
-  cartItems: CartItemPayload[]
+  pizzariaId: string,
+  checkoutData: CheckoutData,
+  cartItems: OrderItem[]
 ) {
   try {
-    let calculatedTotal = 0
-
-    // 1. Validar e Recalcular os Preços dos Produtos no Servidor
-    for (const item of cartItems) {
-      // Vai buscar o preço oficial no banco de dados baseado no Produto e no Tamanho escolhido
-      const { data: priceData, error: priceError } = await supabase
-        .from('product_prices')
-        .select('price')
-        .eq('product_id', item.productId) // Usa o ID do produto
-        .eq('size_name', item.size)
-        .single()
-
-      if (priceError || !priceData) {
-        throw new Error(`Inconsistência de preço ou produto não encontrado: ${item.name} (${item.size})`)
-      }
-
-      // Soma ao total o preço verdadeiro do Banco de Dados
-      calculatedTotal += Number(priceData.price)
+    // 1. Validação básica de segurança
+    if (!cartItems || cartItems.length === 0) {
+      return { success: false, error: 'O carrinho está vazio.' }
     }
 
-    // 2. Validar o Preço da Zona de Entrega
-    let deliveryPrice = 0
-    let deliveryAddressInfo = 'Retirada no Local'
+    // 2. Gerar número do pedido (Simples: timestamp + rand)
+    // Em um sistema real, você poderia usar uma sequence do banco
+    const orderNumber = Math.floor(1000 + Math.random() * 9000)
 
-    if (checkoutData.deliveryZone && checkoutData.deliveryZone.id) {
-      const { data: zoneData, error: zoneError } = await supabase
-        .from('delivery_zones')
-        .select('price, neighborhood_name')
-        .eq('id', checkoutData.deliveryZone.id)
-        .single()
-
-      if (zoneError || !zoneData) {
-        throw new Error('Zona de entrega inválida ou não encontrada no sistema.')
-      }
-
-      deliveryPrice = Number(zoneData.price)
-      deliveryAddressInfo = `${checkoutData.address} - ${zoneData.neighborhood_name}`
-    }
-
-    // 3. O Total Final Real (Protegido contra manipulação do Front-end)
-    const finalTotal = calculatedTotal + deliveryPrice
-
-    // 4. Montar o Payload Seguro para o Banco de Dados
-    const orderPayload = {
-      pizzaria_id: pizzariaId,
-      customer_name: checkoutData.customerName,
-      customer_phone: checkoutData.customerPhone,
-      delivery_address: deliveryAddressInfo,
-      delivery_zone_price: deliveryPrice,
-      payment_method: checkoutData.paymentMethod,
-      total_amount: finalTotal, // INSERÇÃO SEGURA
-      status: 'pending',
-      order_items_json: cartItems 
-    }
-
-    // 5. Inserir na tabela Orders
-    const { data: newOrder, error: insertError } = await supabase
+    // 3. Preparar o objeto para o Supabase
+    // Note que usamos os nomes de colunas que estão no seu banco
+    const { data: order, error: orderError } = await supabase
       .from('orders')
-      .insert(orderPayload)
+      .insert({
+        pizzaria_id: pizzariaId,
+        order_number: orderNumber,
+        customer_name: checkoutData.customerName,
+        customer_phone: checkoutData.customerPhone,
+        delivery_address: checkoutData.deliveryAddress,
+        payment_method: checkoutData.paymentMethod,
+        total_amount: checkoutData.totalAmount,
+        status: 'pending', // Todo pedido nasce como pendente
+        order_items_json: cartItems, // Gravamos o JSON completo do carrinho
+        cancellation_reason: null
+      })
       .select()
       .single()
 
-    if (insertError) {
-      console.error('Supabase Insert Error:', insertError)
-      throw new Error('Falha ao registrar o pedido no banco de dados.')
+    if (orderError) {
+      console.error('Erro Supabase:', orderError)
+      throw new Error(orderError.message)
     }
 
-    // 6. Retorna Sucesso com os dados blindados
     return { 
       success: true, 
-      order: newOrder, 
-      finalTotal: finalTotal // Enviamos o total validado de volta para o Front montar a mensagem do Whats
+      order: order 
     }
 
   } catch (error: any) {
-    console.error('Aviso de Segurança / Erro no Pedido:', error.message)
+    console.error('Erro na Action:', error.message)
     return { 
       success: false, 
-      error: error.message || 'Erro interno ao processar pedido.' 
+      error: error.message || 'Erro ao processar seu pedido.' 
     }
   }
 }
