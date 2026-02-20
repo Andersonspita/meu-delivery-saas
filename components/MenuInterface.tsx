@@ -24,7 +24,6 @@ export default function MenuInterface({ pizzaria, categories, products, delivery
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [activeCategoryId, setActiveCategoryId] = useState<string>(categories[0]?.id || '')
   
-  // ESTADO DE ABERTO/FECHADO (Começa como true para não dar flash de "fechado" se não for o caso)
   const [isOpen, setIsOpen] = useState(true)
   const [isMounted, setIsMounted] = useState(false)
 
@@ -32,10 +31,10 @@ export default function MenuInterface({ pizzaria, categories, products, delivery
     setIsMounted(true)
     
     const checkStatus = () => {
-      if (!operatingHours || operatingHours.length === 0) return true // Se não tem horário, deixa aberto
+      if (!operatingHours || operatingHours.length === 0) return true 
 
       const now = new Date()
-      const day = now.getDay() // 0-6
+      const day = now.getDay() 
       const currentTimeInMinutes = now.getHours() * 60 + now.getMinutes()
       
       const todayHours = operatingHours.find(h => h.day_of_week === day)
@@ -49,10 +48,8 @@ export default function MenuInterface({ pizzaria, categories, products, delivery
         const openTime = openH * 60 + openM
         let closeTime = closeH * 60 + closeM
 
-        // Se o fechamento for 00:00, tratamos como 1440 minutos para a lógica funcionar
         if (closeTime === 0) closeTime = 1440
 
-        // Lógica para horários que viram a noite (ex: 18h às 02h)
         if (closeTime < openTime) {
           return currentTimeInMinutes >= openTime || currentTimeInMinutes <= closeTime
         }
@@ -65,6 +62,13 @@ export default function MenuInterface({ pizzaria, categories, products, delivery
 
     setIsOpen(checkStatus())
   }, [operatingHours])
+
+  // FUNÇÃO DE CLIQUE CORRIGIDA (TS SAFE)
+  const handleProductClick = (product: Product) => {
+    if (!isOpen) return
+    setSelectedProduct(product)
+    setIsModalOpen(true)
+  }
 
   const handleAddToCart = (item: any) => {
     if (!isOpen) return alert('Puxa! A cozinha acabou de fechar.')
@@ -88,20 +92,17 @@ export default function MenuInterface({ pizzaria, categories, products, delivery
   const cartTotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0)
   const displayedProducts = products.filter(p => p.category_id === activeCategoryId)
 
-  // Enquanto não montar no cliente, não renderiza o banner de fechado para evitar erro de fuso
-  if (!isMounted) return <div className="min-h-screen bg-gray-50 animate-pulse" />
+  if (!isMounted) return <div className="min-h-screen bg-gray-50" />
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50 font-sans">
       
-      {/* BANNER LOJA FECHADA - SÓ APARECE SE REALMENTE ESTIVER FECHADO */}
       {!isOpen && (
         <div className="bg-amber-500 text-white p-3 text-center sticky top-0 z-[100] font-black uppercase text-[10px] tracking-widest shadow-lg">
           ⚠️ ESTAMOS FECHADOS NO MOMENTO. CONSULTE NOSSOS HORÁRIOS.
         </div>
       )}
 
-      {/* HEADER */}
       <div className="sticky top-0 z-30 shadow-md bg-white">
         <div className="bg-red-600 p-6 text-white flex flex-col items-center">
           {pizzaria.logo_url && (
@@ -112,7 +113,6 @@ export default function MenuInterface({ pizzaria, categories, products, delivery
           <h1 className="text-xl font-black uppercase tracking-tighter italic">{pizzaria.name}</h1>
         </div>
 
-        {/* CATEGORIAS */}
         <div className="bg-white px-4 py-4 overflow-x-auto flex gap-3 no-scrollbar border-b">
           {categories.map((cat) => (
             <button 
@@ -128,12 +128,11 @@ export default function MenuInterface({ pizzaria, categories, products, delivery
         </div>
       </div>
 
-      {/* PRODUTOS */}
       <main className="max-w-md mx-auto p-4 space-y-6 w-full mb-32">
         {displayedProducts.map((product) => (
           <div 
             key={product.id} 
-            onClick={() => isOpen && (setSelectedProduct(product) || setIsModalOpen(true))} 
+            onClick={() => handleProductClick(product)} // <--- CHAMADA LIMPA AQUI
             className={`bg-white p-4 rounded-3xl border flex items-center transition ${
               !isOpen ? 'opacity-50 grayscale cursor-not-allowed' : 'active:scale-95 shadow-sm'
             }`}
@@ -141,7 +140,7 @@ export default function MenuInterface({ pizzaria, categories, products, delivery
             {product.image_url ? (
                 <img src={product.image_url} className="w-20 h-20 rounded-2xl object-cover mr-4" />
             ) : (
-                <div className="w-20 h-20 rounded-2xl bg-gray-100 flex items-center justify-center mr-4 text-3xl">🍕</div>
+                <div className="w-20 h-20 rounded-2xl bg-gray-50 flex items-center justify-center mr-4 text-3xl">🍕</div>
             )}
             <div className="flex-1 min-w-0">
               <h3 className="font-black text-gray-800 leading-tight uppercase text-sm">{product.name}</h3>
@@ -154,7 +153,6 @@ export default function MenuInterface({ pizzaria, categories, products, delivery
         ))}
       </main>
 
-      {/* FOOTER CARRINHO */}
       {cartLoaded && cart.length > 0 && isOpen && (
         <div className="fixed bottom-0 left-0 w-full bg-white/95 backdrop-blur-md border-t p-5 shadow-2xl z-50 animate-in slide-in-from-bottom">
           <div className="max-w-md mx-auto flex justify-between items-center">
@@ -172,7 +170,6 @@ export default function MenuInterface({ pizzaria, categories, products, delivery
         </div>
       )}
 
-      {/* MODAIS */}
       <ProductModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
