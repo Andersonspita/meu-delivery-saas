@@ -7,7 +7,7 @@ interface ProductModalProps {
   isOpen: boolean
   onClose: () => void
   product: Product | null
-  allProducts: Product[] // Recebemos todos os produtos para listar a outra metade
+  allProducts: Product[] 
   onAddToCart: (item: any) => void
   categoryName?: string
 }
@@ -19,10 +19,8 @@ export default function ProductModal({ isOpen, onClose, product, allProducts, on
   const [observation, setObservation] = useState('')
   const [quantity, setQuantity] = useState(1)
 
-  // Reseta o modal sempre que um novo produto é aberto
   useEffect(() => {
     if (product) {
-      // Ordena os preços do menor para o maior e seleciona o primeiro
       const prices = [...(product.product_prices || [])].sort((a, b) => Number(a.price) - Number(b.price))
       setSelectedSize(prices[0] || null)
       setPizzaType('inteira')
@@ -34,14 +32,11 @@ export default function ProductModal({ isOpen, onClose, product, allProducts, on
 
   if (!isOpen || !product) return null
 
-  // Verifica se a categoria OU o nome do produto contêm 'pizza'
   const isPizza = (categoryName && categoryName.toLowerCase().includes('pizza')) || 
                   product.name.toLowerCase().includes('pizza')
 
-  // Pega os outros sabores da mesma categoria
   const otherFlavors = allProducts.filter(p => p.category_id === product.category_id && p.id !== product.id)
 
-  // LÓGICA DE PREÇO: Cobra pelo sabor mais caro
   let finalPrice = selectedSize ? Number(selectedSize.price) : 0
   let secondFlavorName = ''
 
@@ -49,8 +44,11 @@ export default function ProductModal({ isOpen, onClose, product, allProducts, on
     const secondFlavor = otherFlavors.find(f => f.id === secondFlavorId)
     if (secondFlavor) {
       secondFlavorName = secondFlavor.name
-      // Procura o preço da segunda metade no mesmo tamanho selecionado
-      const secondFlavorPriceObj = secondFlavor.product_prices?.find(p => p.size === selectedSize?.size)
+      
+      // ✅ CORREÇÃO PARA A VERCEL: Garantimos que product_prices nunca será lido como undefined
+      const safePrices = secondFlavor.product_prices || []
+      const secondFlavorPriceObj = safePrices.find(p => p.size === selectedSize?.size)
+      
       const secondFlavorPrice = secondFlavorPriceObj ? Number(secondFlavorPriceObj.price) : 0
       
       if (secondFlavorPrice > finalPrice) {
@@ -65,7 +63,6 @@ export default function ProductModal({ isOpen, onClose, product, allProducts, on
     if (!selectedSize) return alert('Selecione um tamanho.')
     if (pizzaType === 'meio-a-meio' && !secondFlavorId) return alert('Selecione o segundo sabor da pizza.')
 
-    // Junta os nomes para ir bonito para o carrinho e banco de dados
     const itemName = pizzaType === 'meio-a-meio' 
         ? `1/2 ${product.name} + 1/2 ${secondFlavorName}` 
         : product.name
@@ -107,7 +104,7 @@ export default function ProductModal({ isOpen, onClose, product, allProducts, on
           <div className="space-y-3">
             <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Escolha o Tamanho</h3>
             <div className="space-y-2">
-              {product.product_prices.map((priceOption) => (
+              {(product.product_prices || []).map((priceOption) => (
                 <label key={priceOption.id} className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${
                   selectedSize?.id === priceOption.id ? 'border-red-600 bg-red-50/50' : 'border-gray-100 hover:border-gray-200'
                 }`}>
