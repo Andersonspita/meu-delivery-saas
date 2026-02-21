@@ -5,7 +5,7 @@ describe('Gestão do Admin', () => {
 
     // 2. Login (Supabase Auth)
     cy.get('input[type="email"]').type('andersonspita87@gmail.com')
-    cy.get('input[type="password"]').type('sua_senha_aqui') // Cuidado com senhas reais em código!
+    cy.get('input[type="password"]').type('0134679Ab@') // Cuidado com senhas reais em código!
     cy.get('button').contains('Entrar').click()
 
     // 3. Verifica se entrou no Dashboard

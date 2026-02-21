@@ -7,190 +7,198 @@ interface ProductModalProps {
   isOpen: boolean
   onClose: () => void
   product: Product | null
-  allProducts: Product[]
+  allProducts: Product[] // Recebemos todos os produtos para listar a outra metade
   onAddToCart: (item: any) => void
+  categoryName?: string
 }
 
-export default function ProductModal({ isOpen, onClose, product, allProducts, onAddToCart }: ProductModalProps) {
-  const [selectedSizeName, setSelectedSizeName] = useState<string>('')
+export default function ProductModal({ isOpen, onClose, product, allProducts, onAddToCart, categoryName }: ProductModalProps) {
+  const [selectedSize, setSelectedSize] = useState<any>(null)
+  const [pizzaType, setPizzaType] = useState<'inteira' | 'meio-a-meio'>('inteira')
+  const [secondFlavorId, setSecondFlavorId] = useState<string>('')
   const [observation, setObservation] = useState('')
-  
-  const [extraFlavor1, setExtraFlavor1] = useState<string>('')
-  const [extraFlavor2, setExtraFlavor2] = useState<string>('')
+  const [quantity, setQuantity] = useState(1)
 
+  // Reseta o modal sempre que um novo produto é aberto
   useEffect(() => {
-    if (isOpen && product) {
-      const prices = product.product_prices?.sort((a, b) => a.price - b.price) || []
-      if (prices.length > 0) setSelectedSizeName(prices[0].size_name)
+    if (product) {
+      // Ordena os preços do menor para o maior e seleciona o primeiro
+      const prices = [...(product.product_prices || [])].sort((a, b) => Number(a.price) - Number(b.price))
+      setSelectedSize(prices[0] || null)
+      setPizzaType('inteira')
+      setSecondFlavorId('')
       setObservation('')
-      setExtraFlavor1('')
-      setExtraFlavor2('')
+      setQuantity(1)
     }
-  }, [isOpen, product])
+  }, [product])
 
   if (!isOpen || !product) return null
 
-  const basePriceObj = product.product_prices?.find(p => p.size_name === selectedSizeName)
-  const basePrice = basePriceObj ? basePriceObj.price : 0
+  // Verifica se a categoria OU o nome do produto contêm 'pizza'
+  const isPizza = (categoryName && categoryName.toLowerCase().includes('pizza')) || 
+                  product.name.toLowerCase().includes('pizza')
 
-  const availableFlavors = allProducts.filter(p => 
-    p.category_id === product.category_id && 
-    p.id !== product.id && 
-    p.product_prices?.some(price => price.size_name === selectedSizeName)
-  )
+  // Pega os outros sabores da mesma categoria
+  const otherFlavors = allProducts.filter(p => p.category_id === product.category_id && p.id !== product.id)
 
-  const getPriceForProductBySize = (prodId: string, sizeName: string) => {
-    const prod = allProducts.find(p => p.id === prodId)
-    const priceObj = prod?.product_prices?.find(pr => pr.size_name === sizeName)
-    return priceObj ? priceObj.price : 0
+  // LÓGICA DE PREÇO: Cobra pelo sabor mais caro
+  let finalPrice = selectedSize ? Number(selectedSize.price) : 0
+  let secondFlavorName = ''
+
+  if (pizzaType === 'meio-a-meio' && secondFlavorId) {
+    const secondFlavor = otherFlavors.find(f => f.id === secondFlavorId)
+    if (secondFlavor) {
+      secondFlavorName = secondFlavor.name
+      // Procura o preço da segunda metade no mesmo tamanho selecionado
+      const secondFlavorPriceObj = secondFlavor.product_prices.find(p => p.size === selectedSize?.size)
+      const secondFlavorPrice = secondFlavorPriceObj ? Number(secondFlavorPriceObj.price) : 0
+      
+      if (secondFlavorPrice > finalPrice) {
+        finalPrice = secondFlavorPrice
+      }
+    }
   }
 
-  const price1 = extraFlavor1 ? getPriceForProductBySize(extraFlavor1, selectedSizeName) : 0
-  const price2 = extraFlavor2 ? getPriceForProductBySize(extraFlavor2, selectedSizeName) : 0
-  
-  const finalPrice = Math.max(basePrice, price1, price2)
+  const total = finalPrice * quantity
 
-  const handleConfirm = () => {
-    const extraNames = []
-    if (extraFlavor1) {
-      const p1 = allProducts.find(p => p.id === extraFlavor1)
-      if (p1) extraNames.push(p1.name)
-    }
-    if (extraFlavor2) {
-      const p2 = allProducts.find(p => p.id === extraFlavor2)
-      if (p2) extraNames.push(p2.name)
-    }
+  const handleAdd = () => {
+    if (!selectedSize) return alert('Selecione um tamanho.')
+    if (pizzaType === 'meio-a-meio' && !secondFlavorId) return alert('Selecione o segundo sabor da pizza.')
 
-    // AJUSTE SÊNIOR: Alterado de product_id para productId para bater com a Server Action
+    // Junta os nomes para ir bonito para o carrinho e banco de dados
+    const itemName = pizzaType === 'meio-a-meio' 
+        ? `1/2 ${product.name} + 1/2 ${secondFlavorName}` 
+        : product.name
+
     onAddToCart({
-      productId: product.id, 
-      name: product.name,
-      size: selectedSizeName,
+      product_id: product.id,
+      name: itemName,
       price: finalPrice,
-      observation,
-      flavors: extraNames,
-      image_url: product.image_url 
+      quantity,
+      size: selectedSize.size,
+      observation
     })
-    onClose()
   }
-
-  const canSplit = availableFlavors.length > 0 && product.allows_half_half
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto flex flex-col relative overflow-hidden">
+    <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-0 sm:p-4 font-sans">
+      <div className="bg-white w-full max-w-lg h-[90vh] sm:h-auto sm:max-h-[90vh] rounded-t-[2.5rem] sm:rounded-3xl flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-300 shadow-2xl">
         
-        <button 
-            onClick={onClose} 
-            className="absolute top-3 right-3 bg-black/30 text-white rounded-full p-2 hover:bg-black/50 z-20 backdrop-blur-md transition"
-        >
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-        </button>
-
-        <div className="h-56 bg-gray-100 flex items-center justify-center relative shrink-0">
-             {product.image_url ? (
-                <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
-             ) : (
-                <div className="flex flex-col items-center justify-center text-gray-300">
-                    <span className="text-6xl mb-2">🍕</span>
-                    <span className="text-sm font-medium">Sem foto</span>
-                </div>
-             )}
-             <div className="absolute bottom-0 left-0 w-full h-20 bg-gradient-to-t from-black/60 to-transparent"></div>
-             <h2 className="absolute bottom-4 left-4 text-2xl font-bold text-white shadow-black drop-shadow-md">{product.name}</h2>
+        {/* IMAGEM E HEADER */}
+        <div className="relative h-48 bg-gray-100 shrink-0">
+          {product.image_url ? (
+            <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-6xl">🍕</div>
+          )}
+          <button onClick={onClose} className="absolute top-4 right-4 p-2 bg-white/80 backdrop-blur-md rounded-full text-gray-800 shadow-lg">
+            ✕
+          </button>
         </div>
 
-        <div className="p-6 space-y-8">
-          <p className="text-gray-600 text-sm leading-relaxed">{product.description}</p>
-
+        {/* CONTEÚDO SCROLLABLE */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
           <div>
-            <label className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 block">1. Escolha o Tamanho</label>
-            <div className="grid grid-cols-1 gap-3">
-              {product.product_prices?.sort((a, b) => a.price - b.price).map((price) => (
-                <div 
-                  key={price.size_name}
-                  onClick={() => setSelectedSizeName(price.size_name)}
-                  className={`flex justify-between items-center p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                    selectedSizeName === price.size_name 
-                      ? 'border-red-500 bg-red-50 ring-0' 
-                      : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50'
-                  }`}
-                >
-                  <span className={`font-medium ${selectedSizeName === price.size_name ? 'text-red-700' : 'text-gray-700'}`}>{price.size_name}</span>
-                  <span className={`font-bold ${selectedSizeName === price.size_name ? 'text-red-700' : 'text-gray-900'}`}>R$ {price.price.toFixed(2)}</span>
-                </div>
+            <h2 className="text-2xl font-black text-gray-800 uppercase tracking-tighter leading-none">{product.name}</h2>
+            <p className="text-xs text-gray-400 font-medium mt-2 leading-relaxed">{product.description}</p>
+          </div>
+
+          {/* TAMANHOS */}
+          <div className="space-y-3">
+            <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Escolha o Tamanho</h3>
+            <div className="space-y-2">
+              {product.product_prices.map((priceOption) => (
+                <label key={priceOption.id} className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${
+                  selectedSize?.id === priceOption.id ? 'border-red-600 bg-red-50/50' : 'border-gray-100 hover:border-gray-200'
+                }`}>
+                  <div className="flex items-center gap-3">
+                    <input 
+                      type="radio" 
+                      name="size" 
+                      className="w-4 h-4 text-red-600 focus:ring-red-600"
+                      checked={selectedSize?.id === priceOption.id}
+                      onChange={() => setSelectedSize(priceOption)}
+                    />
+                    <span className="font-black text-sm uppercase text-gray-700">{priceOption.size}</span>
+                  </div>
+                  <span className="font-black text-green-600">R$ {Number(priceOption.price).toFixed(2)}</span>
+                </label>
               ))}
             </div>
           </div>
 
-          {canSplit && selectedSizeName && (
-            <div className="bg-gray-50 p-5 rounded-xl border border-dashed border-gray-300">
-              <label className="text-sm font-bold text-gray-800 flex items-center gap-2 mb-4">
-                Montar Pizza (Até 3 Sabores)
-              </label>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="text-xs font-semibold text-gray-500 uppercase block mb-1.5">2º Sabor</label>
-                  <select 
-                    className="w-full p-3 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-red-500 outline-none"
-                    value={extraFlavor1}
-                    onChange={(e) => setExtraFlavor1(e.target.value)}
-                  >
-                    <option value="">-- Apenas {product.name} --</option>
-                    {availableFlavors.map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {extraFlavor1 && (
-                  <div className="animate-in fade-in slide-in-from-top-2">
-                    <label className="text-xs font-semibold text-gray-500 uppercase block mb-1.5">3º Sabor</label>
-                    <select 
-                      className="w-full p-3 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-red-500 outline-none"
-                      value={extraFlavor2}
-                      onChange={(e) => setExtraFlavor2(e.target.value)}
-                    >
-                      <option value="">-- Não adicionar --</option>
-                      {availableFlavors
-                        .filter(p => p.id !== extraFlavor1)
-                        .map(p => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+          {/* MEIO A MEIO (SÓ PARA PIZZAS) */}
+          {isPizza && (
+            <div className="space-y-3 animate-in fade-in">
+              <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Como você quer?</h3>
+              <div className="flex gap-2">
+                <button 
+                  className={`flex-1 py-3 rounded-xl border-2 font-black uppercase text-[10px] tracking-widest transition-all ${pizzaType === 'inteira' ? 'border-red-600 bg-red-600 text-white shadow-lg' : 'border-gray-100 text-gray-400'}`}
+                  onClick={() => { setPizzaType('inteira'); setSecondFlavorId(''); }}
+                >
+                  Inteira (1 Sabor)
+                </button>
+                <button 
+                  className={`flex-1 py-3 rounded-xl border-2 font-black uppercase text-[10px] tracking-widest transition-all ${pizzaType === 'meio-a-meio' ? 'border-red-600 bg-red-600 text-white shadow-lg' : 'border-gray-100 text-gray-400'}`}
+                  onClick={() => setPizzaType('meio-a-meio')}
+                >
+                  Meio a Meio
+                </button>
               </div>
-              <p className="text-[10px] text-gray-400 mt-3 text-center">* O preço será cobrado pelo sabor de maior valor.</p>
+
+              {/* LISTA DE SABORES PARA A SEGUNDA METADE */}
+              {pizzaType === 'meio-a-meio' && (
+                <div className="space-y-2 pt-2 animate-in slide-in-from-top-2">
+                  <h3 className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-2">Escolha a 2ª Metade:</h3>
+                  {otherFlavors.map(flavor => (
+                    <label key={flavor.id} className="flex items-center p-3 rounded-xl border border-gray-100 bg-gray-50 cursor-pointer hover:bg-gray-100">
+                      <input 
+                        type="radio" 
+                        name="secondFlavor" 
+                        className="w-4 h-4 text-red-600"
+                        checked={secondFlavorId === flavor.id}
+                        onChange={() => setSecondFlavorId(flavor.id)}
+                      />
+                      <span className="ml-3 font-bold text-xs text-gray-700 uppercase">{flavor.name}</span>
+                    </label>
+                  ))}
+                  <p className="text-[9px] text-gray-400 uppercase italic text-center mt-2">* Será cobrado o valor da pizza mais cara.</p>
+                </div>
+              )}
             </div>
           )}
 
-          <div>
-            <label className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 block">Observações</label>
-            <textarea
-              className="w-full p-4 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-red-500 outline-none transition bg-gray-50 focus:bg-white"
-              rows={3}
-              placeholder="Ex: Tirar a cebola, massa bem assada..."
+          {/* OBSERVAÇÕES */}
+          <div className="space-y-2 pb-6">
+            <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Observações</h3>
+            <textarea 
+              className="w-full p-4 border-2 border-gray-100 rounded-2xl bg-gray-50 outline-none focus:border-red-500 transition text-sm font-bold placeholder:font-medium"
+              rows={2}
+              placeholder="Ex: Tirar a cebola, enviar sachês..."
               value={observation}
-              onChange={(e) => setObservation(e.target.value)}
+              onChange={e => setObservation(e.target.value)}
             />
           </div>
         </div>
 
-        <div className="p-4 border-t bg-white mt-auto sticky bottom-0 z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-          <div className="flex justify-between items-center mb-4 px-2">
-             <span className="text-gray-500 text-sm font-medium">Total do Item</span>
-             <span className="text-2xl font-bold text-gray-900">R$ {finalPrice.toFixed(2)}</span>
+        {/* FOOTER DE AÇÃO */}
+        <div className="p-6 border-t bg-white">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center bg-gray-50 border-2 border-gray-100 rounded-2xl overflow-hidden">
+              <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="px-4 py-3 text-red-600 font-black hover:bg-gray-100">-</button>
+              <span className="px-2 text-sm font-black text-gray-800">{quantity}</span>
+              <button onClick={() => setQuantity(quantity + 1)} className="px-4 py-3 text-green-600 font-black hover:bg-gray-100">+</button>
+            </div>
+            
+            <button 
+              onClick={handleAdd}
+              className="flex-1 bg-red-600 text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-red-100 hover:bg-red-700 transition active:scale-95 flex justify-between items-center px-6"
+            >
+              <span>Adicionar</span>
+              <span>R$ {total.toFixed(2)}</span>
+            </button>
           </div>
-          <button 
-            onClick={handleConfirm}
-            className="w-full py-4 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 shadow-lg shadow-red-200 transition transform active:scale-95 text-lg"
-          >
-            Adicionar à Sacola
-          </button>
         </div>
-
       </div>
     </div>
   )

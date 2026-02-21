@@ -188,6 +188,7 @@ export default function MenuInterface({ pizzaria, categories, products, delivery
         product={selectedProduct}
         allProducts={products}
         onAddToCart={handleAddToCart}
+        categoryName={categories.find(c => c.id === selectedProduct?.category_id)?.name}
       />
       
       <CheckoutModal 
