@@ -50,7 +50,7 @@ export default function ProductModal({ isOpen, onClose, product, allProducts, on
     if (secondFlavor) {
       secondFlavorName = secondFlavor.name
       // Procura o preço da segunda metade no mesmo tamanho selecionado
-      const secondFlavorPriceObj = secondFlavor.product_prices.find(p => p.size === selectedSize?.size)
+      const secondFlavorPriceObj = secondFlavor.product_prices?.find(p => p.size === selectedSize?.size)
       const secondFlavorPrice = secondFlavorPriceObj ? Number(secondFlavorPriceObj.price) : 0
       
       if (secondFlavorPrice > finalPrice) {
