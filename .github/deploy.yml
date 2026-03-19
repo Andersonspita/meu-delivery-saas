@@ -1,0 +1,30 @@
+name: Deploy Delivery SaaS
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            # Entra na pasta que criamos no WinSCP
+            cd /opt/cardapio
+            
+            # Se a pasta não tiver o código (primeira vez), clona. Se tiver, atualiza.
+            if [ ! -d ".git" ]; then
+              git clone https://github.com/andersonspita/meu-delivery-saas.git .
+            else
+              git pull origin main
+            fi
+            
+            # Sobe os containers (Build e Start)
+            docker compose up -d --build
