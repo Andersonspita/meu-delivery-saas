@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model AdminUser {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  password     String
+  pizzaria_id  String
+  created_at   DateTime @default(now())
+
+  pizzaria     Pizzaria @relation(fields: [pizzaria_id], references: [id], onDelete: Cascade)
+}
+
+model Pizzaria {
+  id              String         @id @default(uuid())
+  slug            String         @unique
+  name            String
+  whatsapp_number String
+  active          Boolean        @default(true)
+  is_open         Boolean        @default(true)
+  logo_url        String?
+  banner_url      String?
+  primary_color   String?        @default("#dc2626")
+  address         String?
+  created_at      DateTime       @default(now())
+
+  categories      Category[]
+  products        Product[]
+  deliveryZones   DeliveryZone[]
+  orders          Order[]
+  adminUsers      AdminUser[]
+}
+
+model Category {
+  id          String    @id @default(uuid())
+  pizzaria_id String
+  name        String
+  sort_order  Int       @default(0)
+
+  pizzaria    Pizzaria  @relation(fields: [pizzaria_id], references: [id], onDelete: Cascade)
+  products    Product[]
+}
+
+model Product {
+  id               String         @id @default(uuid())
+  pizzaria_id      String
+  category_id      String
+  name             String
+  description      String?
+  image_url        String?
+  is_available     Boolean        @default(true)
+  allows_half_half Boolean        @default(false)
+
+  pizzaria         Pizzaria       @relation(fields: [pizzaria_id], references: [id], onDelete: Cascade)
+  category         Category       @relation(fields: [category_id], references: [id], onDelete: Cascade)
+  product_prices   ProductPrice[]
+}
+
+model ProductPrice {
+  id         String  @id @default(uuid())
+  product_id String
+  size_name  String
+  price      Float
+
+  product    Product @relation(fields: [product_id], references: [id], onDelete: Cascade)
+}
+
+model DeliveryZone {
+  id                String   @id @default(uuid())
+  pizzaria_id       String
+  neighborhood_name String
+  price             Float
+  active            Boolean  @default(true)
+
+  pizzaria          Pizzaria @relation(fields: [pizzaria_id], references: [id], onDelete: Cascade)
+}
+
+model Order {
+  id                  String    @id @default(uuid())
+  order_number        Int       @default(autoincrement())
+  pizzaria_id         String
+  customer_name       String
+  customer_phone      String
+  delivery_address    String?
+  delivery_zone_price Float     @default(0)
+  payment_method      String
+  total_amount        Float
+  status              String    @default("pending")
+  order_items_json    Json
+  cancellation_reason String?
+  created_at          DateTime  @default(now())
+
+  // Timestamps de cada etapa
+  confirmed_at        DateTime?
+  preparing_at        DateTime?
+  delivering_at       DateTime?
+  delivered_at        DateTime?
+  canceled_at         DateTime?
+
+  pizzaria            Pizzaria  @relation(fields: [pizzaria_id], references: [id], onDelete: Cascade)
+}
