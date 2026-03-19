@@ -49,7 +49,7 @@ export default async function CardapioPage({ params }: { params: Promise<{ slug:
 
   return (
     <MenuInterface 
-      pizzaria={data.pizzaria} 
+      pizzaria={data.pizzaria as any} 
       categories={data.categories} 
       products={data.products}
       deliveryZones={data.deliveryZones} 
