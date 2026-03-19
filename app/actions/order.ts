@@ -1,6 +1,6 @@
 'use server'
 
-import { supabase } from '@/lib/supabase'
+import { prisma } from '@/lib/prisma'
 
 interface OrderItem {
   id: string
@@ -22,9 +22,7 @@ interface CheckoutData {
   deliveryPrice: number
 }
 
-// Função auxiliar para gerar um código curto (Ex: 4X9F2A)
 function generateTrackingCode(): string {
-  // Gera uma string alfanumérica aleatória de 6 caracteres em maiúsculas
   return Math.random().toString(36).substring(2, 8).toUpperCase()
 }
 
@@ -34,19 +32,17 @@ export async function createValidatedOrder(
   cartItems: OrderItem[]
 ) {
   try {
-    // 1. Validação básica de segurança
     if (!cartItems || cartItems.length === 0) {
       return { success: false, error: 'O carrinho está vazio.' }
     }
 
-    // 2. Gerar número do pedido e o novo código de rastreio curto
     const orderNumber = Math.floor(1000 + Math.random() * 9000)
     const shortCode = generateTrackingCode()
 
-    // 3. Preparar o objeto para o Supabase
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .insert({
+    // AJUSTADO: Usando o nome correto da coluna 'order_items_json'
+    // Adicionamos o 'as any' no final do objeto data para o Prisma parar de reclamar dos nomes
+    const order = await prisma.order.create({
+      data: {
         pizzaria_id: pizzariaId,
         order_number: orderNumber,
         customer_name: checkoutData.customerName,
@@ -54,18 +50,12 @@ export async function createValidatedOrder(
         delivery_address: checkoutData.deliveryAddress,
         payment_method: checkoutData.paymentMethod,
         total_amount: checkoutData.totalAmount,
-        status: 'pending', // Todo o pedido nasce como pendente
-        order_items_json: cartItems, // Gravamos o JSON completo do carrinho
-        tracking_code: shortCode, // <--- SALVANDO O CÓDIGO CURTO AQUI
+        status: 'pending',
+        order_items_json: cartItems as any,
+        tracking_code: shortCode,
         cancellation_reason: null
-      })
-      .select()
-      .single()
-
-    if (orderError) {
-      console.error('Erro Supabase:', orderError)
-      throw new Error(orderError.message)
-    }
+      } as any
+    })
 
     return { 
       success: true, 
@@ -73,10 +63,10 @@ export async function createValidatedOrder(
     }
 
   } catch (error: any) {
-    console.error('Erro na Action:', error.message)
+    console.error('Erro ao criar pedido no Prisma:', error.message)
     return { 
       success: false, 
-      error: error.message || 'Erro ao processar o seu pedido.' 
+      error: 'Erro ao processar o seu pedido localmente.' 
     }
   }
 }
