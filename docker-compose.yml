@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  cardapio-app:
+    container_name: cardapio-app
+    build:
+      context: .
+    restart: unless-stopped
+    ports:
+      # Mapeia a porta 3003 do servidor (Host) para a porta 3000 do contentor
+      - "3003:3000"
+    volumes:
+      # Garante a persistência das imagens: liga a pasta ./uploads do servidor ao /app/public/uploads do contentor
+      - ./uploads:/app/public/uploads
+    env_file:
+      - .env
