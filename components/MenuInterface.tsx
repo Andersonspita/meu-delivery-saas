@@ -298,8 +298,8 @@ export default function MenuInterface({ pizzaria, categories, products, delivery
   const startCheckout = () => { if (cart.length === 0) return; setIsCheckoutOpen(true) }
 
   // ── Envio do pedido com link de rastreamento ──
-  const handleSendOrder = async (data: CheckoutData) => {
-    const deliveryPrice = data.deliveryZone ? Number(data.deliveryZone.price) : 0
+  const handleSendOrder = async (data: any) => { // Mudamos CheckoutData para any aqui
+  const deliveryPrice = data.deliveryZone ? Number(data.deliveryZone.price) : 0
     const finalTotal = cartTotal + deliveryPrice
 
     const orderPayload = {
