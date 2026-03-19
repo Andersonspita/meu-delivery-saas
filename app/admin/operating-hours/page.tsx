@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
@@ -19,32 +18,23 @@ export default function AdminOperatingHoursPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
-  const [pizzariaId, setPizzariaId] = useState<string | null>(null)
   const [hours, setHours] = useState<OperatingHour[]>([])
 
   useEffect(() => {
     const fetchData = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return router.push('/admin')
-
       try {
-        const { data: adminLink } = await supabase
-          .from('admin_users')
-          .select('pizzaria_id')
-          .eq('user_id', session.user.id)
-          .single()
+        // Primeiro, verificamos se o usuário está logado na sua API
+        const sessionRes = await fetch('/api/admin/session')
+        if (!sessionRes.ok) return router.push('/admin')
 
-        if (!adminLink) throw new Error('Acesso negado')
-        setPizzariaId(adminLink.pizzaria_id)
+        // Buscamos as configurações da pizzaria (que incluem os horários)
+        const res = await fetch('/api/admin/settings')
+        const data = await res.json()
 
-        const { data: hoursData } = await supabase
-          .from('operating_hours')
-          .select('*')
-          .eq('pizzaria_id', adminLink.pizzaria_id)
-          .order('day_of_week')
-
-        // Se o banco estiver vazio, inicializa os 7 dias
-        if (!hoursData || hoursData.length === 0) {
+        if (data && data.operating_hours && data.operating_hours.length > 0) {
+          setHours(data.operating_hours)
+        } else {
+          // Se não houver dados, inicializamos os 7 dias padrão
           const initial = DAYS_NAME.map((_, i) => ({
             day_of_week: i,
             opening_time: '18:00',
@@ -52,31 +42,27 @@ export default function AdminOperatingHoursPage() {
             is_closed: false
           }))
           setHours(initial)
-        } else {
-          setHours(hoursData)
         }
-      } catch (err) { console.error(err) } finally { setIsLoading(false) }
+      } catch (err) {
+        console.error('Erro ao carregar dados:', err)
+      } finally {
+        setIsLoading(false)
+      }
     }
     fetchData()
   }, [router])
 
   const handleSave = async () => {
-    if (!pizzariaId) return
     setIsSaving(true)
-
     try {
-      const payload = hours.map(h => ({
-        ...h,
-        pizzaria_id: pizzariaId,
-        // Limpa IDs vazios para o Upsert funcionar
-        id: h.id || undefined 
-      }))
+      const res = await fetch('/api/admin/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operating_hours: hours }),
+      })
 
-      const { error } = await supabase
-        .from('operating_hours')
-        .upsert(payload, { onConflict: 'pizzaria_id, day_of_week' })
-
-      if (error) throw error
+      if (!res.ok) throw new Error('Erro ao salvar no servidor')
+      
       alert('✅ Horários atualizados com sucesso!')
       router.refresh()
     } catch (err: any) {

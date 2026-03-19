@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
@@ -16,13 +15,11 @@ export default function AdminDeliveryPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
-  const [pizzariaId, setPizzariaId] = useState<string | null>(null)
   const [zones, setZones] = useState<DeliveryZone[]>([])
 
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingZone, setEditingZone] = useState<DeliveryZone | null>(null)
   
-  // Inicialização sempre com strings vazias, nunca undefined
   const [formData, setFormData] = useState({
     neighborhood_name: '',
     price: '',
@@ -31,28 +28,17 @@ export default function AdminDeliveryPage() {
 
   useEffect(() => {
     const fetchData = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return router.push('/admin')
-
       try {
-        const { data: adminLink } = await supabase
-          .from('admin_users')
-          .select('pizzaria_id')
-          .eq('user_id', session.user.id)
-          .single()
+        // Verifica sessão na sua API interna
+        const sessionRes = await fetch('/api/admin/session')
+        if (!sessionRes.ok) return router.push('/admin')
 
-        if (!adminLink) throw new Error('Vínculo não encontrado')
-        setPizzariaId(adminLink.pizzaria_id)
-
-        const { data: zonesData } = await supabase
-          .from('delivery_zones')
-          .select('*')
-          .eq('pizzaria_id', adminLink.pizzaria_id)
-          .order('neighborhood_name')
-
-        setZones(zonesData || [])
+        // Busca as zonas de entrega na sua API do Postgres
+        const res = await fetch('/api/admin/delivery')
+        const data = await res.json()
+        setZones(Array.isArray(data) ? data : [])
       } catch (err) {
-        console.error(err)
+        console.error('Erro ao carregar taxas:', err)
       } finally {
         setIsLoading(false)
       }
@@ -77,22 +63,26 @@ export default function AdminDeliveryPage() {
 
   const handleSaveZone = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!pizzariaId) return
     setIsSaving(true)
 
     try {
       const payload = {
-        pizzaria_id: pizzariaId,
+        id: editingZone?.id, // Envia o ID apenas se estiver editando
         neighborhood_name: formData.neighborhood_name,
         price: parseFloat(formData.price) || 0,
         active: formData.active
       }
 
-      if (editingZone) {
-        await supabase.from('delivery_zones').update(payload).eq('id', editingZone.id)
-      } else {
-        await supabase.from('delivery_zones').insert(payload)
-      }
+      // Usamos POST para criar e PATCH para editar na sua API
+      const method = editingZone ? 'PATCH' : 'POST'
+      
+      const res = await fetch('/api/admin/delivery', {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+
+      if (!res.ok) throw new Error('Erro ao salvar no servidor')
 
       alert('✅ Salvo com sucesso!')
       window.location.reload()
@@ -100,6 +90,19 @@ export default function AdminDeliveryPage() {
       alert('Erro ao salvar: ' + err.message)
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Excluir este bairro?')) return
+    try {
+      const res = await fetch(`/api/admin/delivery?id=${id}`, {
+        method: 'DELETE'
+      })
+      if (!res.ok) throw new Error()
+      setZones(zones.filter(z => z.id !== id))
+    } catch (err) {
+      alert('Erro ao excluir.')
     }
   }
 
@@ -128,12 +131,7 @@ export default function AdminDeliveryPage() {
                 </div>
                 <div className="flex gap-4">
                   <button onClick={() => openModal(zone)} className="text-[10px] font-black text-blue-600 uppercase">Editar</button>
-                  <button onClick={async () => {
-                    if(confirm('Excluir?')) {
-                      await supabase.from('delivery_zones').delete().eq('id', zone.id)
-                      setZones(zones.filter(z => z.id !== zone.id))
-                    }
-                  }} className="text-[10px] font-black text-red-400 uppercase">Excluir</button>
+                  <button onClick={() => handleDelete(zone.id)} className="text-[10px] font-black text-red-400 uppercase">Excluir</button>
                 </div>
               </div>
             ))}
@@ -152,8 +150,7 @@ export default function AdminDeliveryPage() {
                   type="text" 
                   required 
                   className="w-full p-3 border rounded-xl text-sm font-bold outline-none bg-gray-50"
-                  // PROTEÇÃO CONTRA O ERRO: Sempre garante uma string
-                  value={formData.neighborhood_name || ''} 
+                  value={formData.neighborhood_name} 
                   onChange={e => setFormData({...formData, neighborhood_name: e.target.value})}
                 />
               </div>
@@ -164,8 +161,7 @@ export default function AdminDeliveryPage() {
                   step="0.01" 
                   required 
                   className="w-full p-3 border rounded-xl text-sm font-bold outline-none bg-gray-50"
-                  // PROTEÇÃO CONTRA O ERRO: Sempre garante uma string ou número
-                  value={formData.price || ''} 
+                  value={formData.price} 
                   onChange={e => setFormData({...formData, price: e.target.value})}
                 />
               </div>
