@@ -12,6 +12,7 @@ interface Category {
   _count: { products: number }
 }
 
+
 export default function AdminCategoriasPage() {
   const router = useRouter()
   const [categories, setCategories] = useState<Category[]>([])
